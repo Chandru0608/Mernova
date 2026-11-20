@@ -1,4 +1,7 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'api.dart';
 
 const _green = Color(0xFF147D5A);
@@ -120,10 +123,77 @@ class _OrdersScreenState extends State<OrdersScreen>{
   Future<void> load()async{try{final d=await Api.get('/orders/my');if(mounted)setState(()=>orders=d['orders']??[]);}catch(e){if(mounted)setState(()=>error=e.toString());}finally{if(mounted)setState(()=>loading=false);}}
   @override Widget build(BuildContext context)=>Scaffold(appBar:AppBar(title:const Text('Your orders')),body:loading?const Center(child:CircularProgressIndicator()):error.isNotEmpty?Center(child:Text(error)):orders.isEmpty?const Center(child:Column(mainAxisSize:MainAxisSize.min,children:[Icon(Icons.receipt_long_outlined,size:54,color:_muted),SizedBox(height:12),Text('No orders yet',style:TextStyle(fontSize:18,fontWeight:FontWeight.w700)),Text('Your orders will show up here.')])):RefreshIndicator(onRefresh:load,child:ListView.separated(padding:const EdgeInsets.all(16),itemCount:orders.length,separatorBuilder:(_,__)=>const SizedBox(height:12),itemBuilder:(ctx,i){final o=orders[i];final id=o['_id'].toString();return Card(child:Padding(padding:const EdgeInsets.all(17),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
     Row(children:[Expanded(child:Text('Order #${id.substring(id.length-6)}',style:const TextStyle(fontWeight:FontWeight.w800,fontSize:16))),Container(padding:const EdgeInsets.symmetric(horizontal:10,vertical:6),decoration:BoxDecoration(color:const Color(0xFFE5F3EA),borderRadius:BorderRadius.circular(30)),child:Text((o['status']??'placed').toString().replaceAll('_',' '),style:const TextStyle(color:_green,fontWeight:FontWeight.w700,fontSize:12)))]),
-    const SizedBox(height:9),Text((o['items'] as List? ?? []).map((x)=>'${x['name']} × ${x['quantity']}').join(' · '),style:const TextStyle(color:_muted)),const SizedBox(height:9),Text('₹${o['total']}  ·  ${o['store']?['name']??'QuickDeliver store'}',style:const TextStyle(fontWeight:FontWeight.w700,color:_ink)),if((o['address']??'').toString().isNotEmpty)Padding(padding:const EdgeInsets.only(top:7),child:Text(o['address'],style:const TextStyle(color:_muted,fontSize:12)))
+    const SizedBox(height:9),Text((o['items'] as List? ?? []).map((x)=>'${x['name']} × ${x['quantity']}').join(' · '),style:const TextStyle(color:_muted)),const SizedBox(height:9),Text('₹${o['total']}  ·  ${o['store']?['name']??'QuickDeliver store'}',style:const TextStyle(fontWeight:FontWeight.w700,color:_ink)),if((o['address']??'').toString().isNotEmpty)Padding(padding:const EdgeInsets.only(top:7),child:Text(o['address'],style:const TextStyle(color:_muted,fontSize:12))),if(o['deliveryPartner']!=null && ['picked_up','on_the_way'].contains(o['status']))Padding(padding:const EdgeInsets.only(top:12),child:FilledButton.icon(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>LiveTrackingScreen(orderId:id))),icon:const Icon(Icons.location_searching_rounded),label:const Text('Track delivery partner')))
   ])));})));
 }
 
+
+
+class LiveTrackingScreen extends StatefulWidget {
+  final String orderId;
+  const LiveTrackingScreen({super.key, required this.orderId});
+  @override State<LiveTrackingScreen> createState() => _LiveTrackingScreenState();
+}
+class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
+  final MapController mapController = MapController();
+  Timer? refreshTimer;
+  LatLng? rider;
+  String status = 'Loading tracking…', address = '', partnerName = 'Delivery partner', phone = '', error = '';
+  DateTime? updatedAt;
+  bool loading = true;
+  @override void initState() {
+    super.initState();
+    load();
+    refreshTimer = Timer.periodic(const Duration(seconds: 5), (_) => load(silent: true));
+  }
+  Future<void> load({bool silent = false}) async {
+    try {
+      final data = await Api.get('/orders/${widget.orderId}/tracking');
+      final tracking = data['tracking'] ?? {};
+      final loc = tracking['location'];
+      if (!mounted) return;
+      setState(() {
+        status = (tracking['status'] ?? 'placed').toString().replaceAll('_', ' ');
+        address = (tracking['address'] ?? '').toString();
+        partnerName = tracking['deliveryPartner']?['name'] ?? 'Delivery partner';
+        phone = (tracking['deliveryPartner']?['phone'] ?? '').toString();
+        if (loc != null && loc['latitude'] != null && loc['longitude'] != null) {
+          rider = LatLng((loc['latitude'] as num).toDouble(), (loc['longitude'] as num).toDouble());
+          updatedAt = loc['updatedAt'] == null ? null : DateTime.tryParse(loc['updatedAt'].toString());
+        }
+        error = '';
+        loading = false;
+      });
+      if (rider != null) mapController.move(rider!, 16);
+    } catch (e) {
+      if (mounted) setState(() { error = e.toString(); loading = false; });
+    }
+  }
+  @override void dispose() { refreshTimer?.cancel(); mapController.dispose(); super.dispose(); }
+  @override Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Live delivery tracking'), actions: [IconButton(onPressed: () => load(), icon: const Icon(Icons.refresh_rounded))]),
+    body: loading ? const Center(child: CircularProgressIndicator()) : Column(children: [
+      Expanded(child: rider == null
+        ? Center(child: Padding(padding: const EdgeInsets.all(28), child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(Icons.delivery_dining_rounded, size: 58, color: _green), const SizedBox(height: 12),
+            const Text('Waiting for partner location', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: _ink)), const SizedBox(height: 7),
+            Text(error.isNotEmpty ? error : 'Your delivery partner’s live location will appear here after they start the delivery.', textAlign: TextAlign.center, style: const TextStyle(color: _muted)),
+          ])))
+        : FlutterMap(mapController: mapController, options: MapOptions(initialCenter: rider!, initialZoom: 15), children: [
+            TileLayer(urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', userAgentPackageName: 'com.example.quickdeliver_customer'),
+            MarkerLayer(markers: [Marker(point: rider!, width: 58, height: 58, child: const Icon(Icons.delivery_dining_rounded, color: _green, size: 48))]),
+          ])),
+      Container(width: double.infinity, padding: const EdgeInsets.all(18), decoration: const BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Color(0x14000000), blurRadius: 12, offset: Offset(0,-3))]), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('ORDER STATUS · ${status.toUpperCase()}', style: const TextStyle(color: _green, fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: .8)),
+        const SizedBox(height: 7), Text(partnerName, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: _ink)),
+        if(phone.isNotEmpty) Text(phone, style: const TextStyle(color: _muted)),
+        const SizedBox(height: 8), Text(address, style: const TextStyle(color: _muted, fontSize: 12)),
+        const SizedBox(height: 8), Text(updatedAt == null ? 'Location not received yet' : 'Last location update: ${updatedAt!.toLocal().toString().substring(0, 19)}', style: const TextStyle(fontSize: 11, color: _muted)),
+        const SizedBox(height: 5), const Text('Map refreshes automatically every 5 seconds while this screen is open.', style: TextStyle(fontSize: 11, color: _muted)),
+      ])),
+    ]),
+  );
+}
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
