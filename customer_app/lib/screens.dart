@@ -68,7 +68,10 @@ class _HomeScreenState extends State<HomeScreen> {
       final profile=await Api.get('/auth/me');
       savedAddresses=List<Map<String,dynamic>>.from((profile['user']?['addresses']??[]).map((x)=>Map<String,dynamic>.from(x)));
     } catch (_) {}
-    final defaultAddress=savedAddresses.where((a)=>a['isDefault']==true).firstOrNull;
+    Map<String,dynamic>? defaultAddress;
+    for (final item in savedAddresses) {
+      if (item['isDefault']==true) { defaultAddress=item; break; }
+    }
     final address=TextEditingController(text:(defaultAddress?['fullAddress']??'').toString());
     final ok=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(title:const Text('Where should we deliver?'),content:Column(mainAxisSize:MainAxisSize.min,children:[
       if(savedAddresses.isNotEmpty) DropdownButtonFormField<String>(
