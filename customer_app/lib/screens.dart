@@ -71,7 +71,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
   Future<void> logout() async {await Api.logout();if(!mounted)return;Navigator.pushAndRemoveUntil(context,MaterialPageRoute(builder:(_)=>const LoginScreen()),(_)=>false);}
   @override Widget build(BuildContext context)=>Scaffold(
-    appBar:AppBar(title:const Text('QuickDeliver'),actions:[IconButton(tooltip:'My orders',onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const OrdersScreen())),icon:const Icon(Icons.receipt_long_outlined)),IconButton(tooltip:'Log out',onPressed:logout,icon:const Icon(Icons.logout))]),
+    appBar:AppBar(title:const Text('QuickDeliver'),actions:[IconButton(tooltip:'Profile and addresses',onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const ProfileScreen())),icon:const Icon(Icons.account_circle_outlined)),IconButton(tooltip:'My orders',onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const OrdersScreen())),icon:const Icon(Icons.receipt_long_outlined)),IconButton(tooltip:'Log out',onPressed:logout,icon:const Icon(Icons.logout))]),
     body:Column(children:[
       Padding(padding:const EdgeInsets.fromLTRB(18,8,18,16),child:Container(width:double.infinity,padding:const EdgeInsets.all(20),decoration:BoxDecoration(color:_green,borderRadius:BorderRadius.circular(24)),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
         const Text('YOUR DAY, DELIVERED.',style:TextStyle(color:Color(0xFFC8F0D9),fontSize:11,fontWeight:FontWeight.w800,letterSpacing:1.2)),
@@ -105,4 +105,46 @@ class _OrdersScreenState extends State<OrdersScreen>{
     Row(children:[Expanded(child:Text('Order #${id.substring(id.length-6)}',style:const TextStyle(fontWeight:FontWeight.w800,fontSize:16))),Container(padding:const EdgeInsets.symmetric(horizontal:10,vertical:6),decoration:BoxDecoration(color:const Color(0xFFE5F3EA),borderRadius:BorderRadius.circular(30)),child:Text((o['status']??'placed').toString().replaceAll('_',' '),style:const TextStyle(color:_green,fontWeight:FontWeight.w700,fontSize:12)))]),
     const SizedBox(height:9),Text((o['items'] as List? ?? []).map((x)=>'${x['name']} × ${x['quantity']}').join(' · '),style:const TextStyle(color:_muted)),const SizedBox(height:9),Text('₹${o['total']}  ·  ${o['store']?['name']??'QuickDeliver store'}',style:const TextStyle(fontWeight:FontWeight.w700,color:_ink)),if((o['address']??'').toString().isNotEmpty)Padding(padding:const EdgeInsets.only(top:7),child:Text(o['address'],style:const TextStyle(color:_muted,fontSize:12)))
   ])));})));
+}
+
+
+class ProfileScreen extends StatefulWidget {
+  const ProfileScreen({super.key});
+  @override State<ProfileScreen> createState()=>_ProfileScreenState();
+}
+class _ProfileScreenState extends State<ProfileScreen> {
+  final name=TextEditingController(), phone=TextEditingController();
+  List<Map<String,dynamic>> addresses=[];
+  bool loading=true, saving=false;
+  String email='';
+  @override void initState(){super.initState();load();}
+  @override void dispose(){name.dispose();phone.dispose();super.dispose();}
+  Future<void> load()async{
+    try{
+      final d=await Api.get('/auth/me');final u=d['user']??{};
+      if(!mounted)return;
+      setState((){name.text=u['name']??'';phone.text=u['phone']??'';email=u['email']??'';addresses=List<Map<String,dynamic>>.from((u['addresses']??[]).map((x)=>Map<String,dynamic>.from(x)));});
+    }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
+    finally{if(mounted)setState(()=>loading=false);}
+  }
+  Future<void> save()async{
+    setState(()=>saving=true);
+    try{await Api.patch('/auth/profile',{'name':name.text.trim(),'phone':phone.text.trim(),'addresses':addresses});if(!mounted)return;ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Profile and addresses saved.')));}
+    catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
+    finally{if(mounted)setState(()=>saving=false);}
+  }
+  Future<void> addAddress()async{
+    final label=TextEditingController(text:'Home'),address=TextEditingController();
+    final ok=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(title:const Text('Add a saved address'),content:Column(mainAxisSize:MainAxisSize.min,children:[TextField(controller:label,decoration:const InputDecoration(labelText:'Label (Home, Work…)')),const SizedBox(height:12),TextField(controller:address,maxLines:3,decoration:const InputDecoration(labelText:'Full delivery address'))]),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Add address'))]));
+    if(ok==true&&address.text.trim().isNotEmpty){setState(()=>addresses.add({'label':label.text.trim().isEmpty?'Address':label.text.trim(),'fullAddress':address.text.trim(),'isDefault':addresses.isEmpty}));}
+  }
+  @override Widget build(BuildContext context)=>Scaffold(appBar:AppBar(title:const Text('Your profile')),body:loading?const Center(child:CircularProgressIndicator()):ListView(padding:const EdgeInsets.all(18),children:[
+    Container(padding:const EdgeInsets.all(19),decoration:BoxDecoration(color:_green,borderRadius:BorderRadius.circular(21)),child:Row(children:[const CircleAvatar(radius:27,backgroundColor:Colors.white24,child:Icon(Icons.person_outline,color:Colors.white,size:30)),const SizedBox(width:13),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('ACCOUNT DETAILS',style:TextStyle(color:Color(0xFFC8F0D9),fontSize:10,fontWeight:FontWeight.w800,letterSpacing:1)),const SizedBox(height:5),Text(email,style:const TextStyle(color:Colors.white,fontWeight:FontWeight.w700))]))])),
+    const SizedBox(height:22),const Text('Personal information',style:TextStyle(fontSize:18,fontWeight:FontWeight.w800,color:_ink)),const SizedBox(height:12),
+    TextField(controller:name,decoration:const InputDecoration(labelText:'Full name')),const SizedBox(height:12),TextField(controller:phone,keyboardType:TextInputType.phone,decoration:const InputDecoration(labelText:'Phone number')),
+    const SizedBox(height:25),Row(children:[const Expanded(child:Text('Saved addresses',style:TextStyle(fontSize:18,fontWeight:FontWeight.w800,color:_ink))),TextButton.icon(onPressed:addAddress,icon:const Icon(Icons.add),label:const Text('Add'))]),
+    if(addresses.isEmpty)const Padding(padding:EdgeInsets.symmetric(vertical:20),child:Text('No saved addresses yet. Add your home or work address for faster checkout.',style:TextStyle(color:_muted)))
+    else ...addresses.asMap().entries.map((entry){final i=entry.key,a=entry.value;return Card(child:ListTile(leading:const Icon(Icons.location_on_outlined,color:_green),title:Text(a['label']??'Address',style:const TextStyle(fontWeight:FontWeight.w700)),subtitle:Text(a['fullAddress']??''),isThreeLine:true,trailing:PopupMenuButton<String>(onSelected:(v){setState((){if(v=='default'){for(final item in addresses){item['isDefault']=false;}addresses[i]['isDefault']=true;}else if(v=='delete'){addresses.removeAt(i);}});},itemBuilder:(_)=>[if(a['isDefault']!=true)const PopupMenuItem(value:'default',child:Text('Make default')),const PopupMenuItem(value:'delete',child:Text('Remove'))]),)) ;}),
+    const SizedBox(height:22),FilledButton(onPressed:saving?null:save,child:Text(saving?'Saving…':'Save profile and addresses')),
+  ]));
 }
