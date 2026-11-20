@@ -141,6 +141,7 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
   String status = 'Loading tracking…', address = '', partnerName = 'Delivery partner', phone = '', error = '';
   DateTime? updatedAt;
   bool loading = true;
+  bool mapReady = false;
   @override void initState() {
     super.initState();
     load();
@@ -164,7 +165,7 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
         error = '';
         loading = false;
       });
-      if (rider != null) mapController.move(rider!, 16);
+      if (rider != null && mapReady) mapController.move(rider!, 16);
     } catch (e) {
       if (mounted) setState(() { error = e.toString(); loading = false; });
     }
@@ -179,7 +180,7 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
             const Text('Waiting for partner location', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: _ink)), const SizedBox(height: 7),
             Text(error.isNotEmpty ? error : 'Your delivery partner’s live location will appear here after they start the delivery.', textAlign: TextAlign.center, style: const TextStyle(color: _muted)),
           ])))
-        : FlutterMap(mapController: mapController, options: MapOptions(initialCenter: rider!, initialZoom: 15), children: [
+        : FlutterMap(mapController: mapController, options: MapOptions(initialCenter: rider!, initialZoom: 15, onMapReady: () { mapReady = true; if (rider != null) mapController.move(rider!, 16); }), children: [
             TileLayer(urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', userAgentPackageName: 'com.example.quickdeliver_customer'),
             MarkerLayer(markers: [Marker(point: rider!, width: 58, height: 58, child: const Icon(Icons.delivery_dining_rounded, color: _green, size: 48))]),
           ])),
