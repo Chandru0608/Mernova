@@ -375,10 +375,12 @@ class _PartnerHomeState extends State<PartnerHome> {
 
 class DeliveryMapScreen extends StatefulWidget {
   final String address;
+  final String orderId;
 
   const DeliveryMapScreen({
     super.key,
     required this.address,
+    required this.orderId,
   });
 
   @override
@@ -408,6 +410,17 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
   void initState() {
     super.initState();
     _start();
+  }
+
+  Future<void> _sendLocation(double latitude, double longitude) async {
+    try {
+      await Api.patch('/orders/${widget.orderId}/location', {
+        'latitude': latitude,
+        'longitude': longitude,
+      });
+    } catch (_) {
+      // Keep local GPS updates running through temporary network failures.
+    }
   }
 
   // ========================================
@@ -452,6 +465,7 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
         );
         message = 'Finding delivery address...';
       });
+      await _sendLocation(position.latitude, position.longitude);
 
       // Convert customer address to map coordinates.
       if (widget.address.trim().isEmpty) {
@@ -508,6 +522,7 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
             position.longitude,
           );
         });
+        unawaited(_sendLocation(position.latitude, position.longitude));
       });
     } catch (e) {
       if (mounted) {
