@@ -137,6 +137,8 @@ class PartnerHome extends StatefulWidget {
 class _PartnerHomeState extends State<PartnerHome> {
   List orders = [];
   bool busy = true;
+  bool available = true;
+  bool availabilityBusy = false;
   String error = '';
 
   @override
@@ -154,11 +156,16 @@ class _PartnerHomeState extends State<PartnerHome> {
     }
 
     try {
-      final data = await Api.get('/orders/delivery');
-
+      final results = await Future.wait([
+        Api.get('/orders/delivery'),
+        Api.get('/auth/me'),
+      ]);
+      final data = results[0];
+      final user = results[1]['user'] ?? {};
       if (mounted) {
         setState(() {
           orders = data['orders'] ?? [];
+          available = user['isAvailable'] != false;
         });
       }
     } catch (e) {
@@ -167,6 +174,25 @@ class _PartnerHomeState extends State<PartnerHome> {
       }
     } finally {
       if (mounted) setState(() => busy = false);
+    }
+  }
+
+  Future<void> setAvailability(bool value) async {
+    if (availabilityBusy) return;
+    setState(() => availabilityBusy = true);
+    try {
+      final result = await Api.patch('/auth/availability', {'isAvailable': value});
+      if (mounted) {
+        setState(() => available = result['isAvailable'] == true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(available ? 'You are available for new jobs' : 'You will not receive new jobs')),
+        );
+        await load();
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+    } finally {
+      if (mounted) setState(() => availabilityBusy = false);
     }
   }
 
@@ -215,6 +241,8 @@ class _PartnerHomeState extends State<PartnerHome> {
   @override
   Widget build(BuildContext context) {
     final active = orders.where((o) => !['delivered','cancelled'].contains(o['status'])).length;
+    final completed = orders.where((o) => o['status'] == 'delivered').toList();
+    final deliveryFees = completed.fold<double>(0, (sum, order) => sum + ((order['deliveryFee'] as num?)?.toDouble() ?? 0));
     return Scaffold(
       appBar: AppBar(
         title: const Text('Partner hub'),
@@ -253,6 +281,22 @@ class _PartnerHomeState extends State<PartnerHome> {
                           ],
                         ),
                       ),
+                      const SizedBox(height: 16),
+                      Card(
+                        child: SwitchListTile(
+                          value: available,
+                          onChanged: availabilityBusy ? null : setAvailability,
+                          secondary: Icon(available ? Icons.wifi_tethering_rounded : Icons.pause_circle_outline_rounded, color: available ? const Color(0xFF16845B) : const Color(0xFF718099)),
+                          title: Text(available ? 'You are available' : 'You are unavailable', style: const TextStyle(fontWeight: FontWeight.w800)),
+                          subtitle: Text(available ? 'New ready orders can be claimed' : 'You can finish assigned deliveries, but cannot claim new ones'),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(children: [
+                        Expanded(child: _PartnerStatCard(label: 'Completed', value: completed.length.toString(), icon: Icons.task_alt_rounded)),
+                        const SizedBox(width: 10),
+                        Expanded(child: _PartnerStatCard(label: 'Delivery fees', value: '₹${deliveryFees.toStringAsFixed(0)}', icon: Icons.currency_rupee_rounded)),
+                      ]),
                       const SizedBox(height: 23),
                       Row(children: [
                         const Expanded(child: Text('Your deliveries', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: Color(0xFF17233B)))),
