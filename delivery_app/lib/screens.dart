@@ -80,53 +80,42 @@ class _PartnerLoginState extends State<PartnerLogin> {
 
   @override
   Widget build(BuildContext context) {
+    const blue = Color(0xFF2456C5);
+    const ink = Color(0xFF17233B);
     return Scaffold(
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(
-                Icons.delivery_dining,
-                size: 75,
-                color: Color(0xff1565c0),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 440),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(
+                    height: 88, width: 88,
+                    decoration: BoxDecoration(color: blue.withOpacity(.10), borderRadius: BorderRadius.circular(28)),
+                    child: const Icon(Icons.delivery_dining_rounded, size: 52, color: blue),
+                  ),
+                  const SizedBox(height: 28),
+                  const Text('Your next delivery starts here.', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: ink, height: 1.15)),
+                  const SizedBox(height: 9),
+                  const Text('Sign in to manage your jobs, reach customers and keep every order moving.', style: TextStyle(color: Color(0xFF718099), fontSize: 15)),
+                  const SizedBox(height: 30),
+                  const Text('EMAIL ADDRESS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF718099))),
+                  const SizedBox(height: 7),
+                  TextField(controller: email, keyboardType: TextInputType.emailAddress, decoration: const InputDecoration(hintText: 'you@example.com')),
+                  const SizedBox(height: 16),
+                  const Text('PASSWORD', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF718099))),
+                  const SizedBox(height: 7),
+                  TextField(controller: password, obscureText: true, decoration: const InputDecoration(hintText: 'Enter your password')),
+                  const SizedBox(height: 24),
+                  FilledButton(onPressed: busy ? null : login, child: Text(busy ? 'Signing in…' : 'Sign in')),
+                  const SizedBox(height: 18),
+                  const Center(child: Text('QUICKDELIVER PARTNER', style: TextStyle(fontSize: 10, letterSpacing: 1.5, fontWeight: FontWeight.w800, color: Color(0xFF8A96AA)))),
+                ],
               ),
-              const SizedBox(height: 12),
-              const Text(
-                'Delivery Partner',
-                style: TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 20),
-              TextField(
-                controller: email,
-                keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(
-                  labelText: 'Email',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: password,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'Password',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 18),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: busy ? null : login,
-                  child: Text(busy ? 'Signing in...' : 'Login'),
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -225,129 +214,116 @@ class _PartnerHomeState extends State<PartnerHome> {
 
   @override
   Widget build(BuildContext context) {
+    final active = orders.where((o) => !['delivered','cancelled'].contains(o['status'])).length;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('My deliveries'),
+        title: const Text('Partner hub'),
         actions: [
-          IconButton(
-            onPressed: load,
-            icon: const Icon(Icons.refresh),
-          ),
-          IconButton(
-            onPressed: logout,
-            icon: const Icon(Icons.logout),
-          ),
+          IconButton(onPressed: load, icon: const Icon(Icons.refresh_rounded), tooltip: 'Refresh'),
+          IconButton(onPressed: logout, icon: const Icon(Icons.logout_rounded), tooltip: 'Log out'),
         ],
       ),
       body: busy
           ? const Center(child: CircularProgressIndicator())
           : error.isNotEmpty
-              ? Center(child: Text(error))
-              : orders.isEmpty
-                  ? const Center(
-                      child: Text('No assigned deliveries yet'),
-                    )
-                  : RefreshIndicator(
-                      onRefresh: load,
-                      child: ListView.builder(
-                        itemCount: orders.length,
-                        itemBuilder: (context, index) {
-                          final order = orders[index];
-
+              ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(error, textAlign: TextAlign.center)))
+              : RefreshIndicator(
+                  onRefresh: load,
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(22),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF2456C5),
+                          borderRadius: BorderRadius.circular(23),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('READY FOR THE ROAD?', style: TextStyle(color: Color(0xFFD4E1FF), fontSize: 10, letterSpacing: 1.3, fontWeight: FontWeight.w800)),
+                            const SizedBox(height: 9),
+                            const Text('Every delivery makes a difference.', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800)),
+                            const SizedBox(height: 17),
+                            Row(children: [
+                              const Icon(Icons.local_shipping_outlined, color: Colors.white70, size: 19),
+                              const SizedBox(width: 8),
+                              Text('$active active deliveries', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                            ]),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 23),
+                      Row(children: [
+                        const Expanded(child: Text('Your deliveries', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: Color(0xFF17233B)))),
+                        Container(padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7), decoration: BoxDecoration(color: const Color(0xFFE7EEFF), borderRadius: BorderRadius.circular(30)), child: Text('${orders.length} orders', style: const TextStyle(color: Color(0xFF2456C5), fontSize: 11, fontWeight: FontWeight.w800))),
+                      ]),
+                      const SizedBox(height: 13),
+                      if (orders.isEmpty)
+                        const Padding(padding: EdgeInsets.symmetric(vertical: 48), child: Column(children: [
+                          Icon(Icons.inventory_2_outlined, size: 54, color: Color(0xFF9AA7BB)),
+                          SizedBox(height: 12),
+                          Text('No deliveries available', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+                          SizedBox(height: 5),
+                          Text('Pull down to check for new orders.', style: TextStyle(color: Color(0xFF718099))),
+                        ]))
+                      else
+                        ...orders.map((order) {
                           final id = order['_id'].toString();
                           final status = order['status'].toString();
-                          final address =
-                              (order['address'] ?? '').toString();
-
-                          final next = status == 'ready'
-                              ? 'picked_up'
-                              : status == 'picked_up'
-                                  ? 'on_the_way'
-                                  : status == 'on_the_way'
-                                      ? 'delivered'
-                                      : null;
-
-                          final assigned =
-                              order['deliveryPartner'] != null;
-
-                          final shortId = id.length >= 6
-                              ? id.substring(id.length - 6)
-                              : id;
-
-                          return Card(
-                            margin: const EdgeInsets.all(10),
-                            child: Padding(
-                              padding: const EdgeInsets.all(14),
-                              child: Column(
-                                crossAxisAlignment:
-                                    CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Order #$shortId',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 18,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Customer: ${order['customer']?['name'] ?? 'Customer'}',
-                                  ),
-                                  Text(
-                                    'Store: ${order['store']?['name'] ?? 'Store'}',
-                                  ),
-                                  Text('Delivery address: $address'),
-                                  const SizedBox(height: 5),
-                                  Text('Status: $status'),
-
-                                  if (assigned &&
-                                      (status == 'picked_up' ||
-                                          status == 'on_the_way'))
-                                    OutlinedButton.icon(
-                                      onPressed: () {
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (_) =>
-                                                DeliveryMapScreen(
-                                              address: address,
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                      icon: const Icon(Icons.map),
-                                      label: const Text(
-                                        'Open delivery map',
+                          final address = (order['address'] ?? '').toString();
+                          final next = status == 'ready' ? 'picked_up' : status == 'picked_up' ? 'on_the_way' : status == 'on_the_way' ? 'delivered' : null;
+                          final assigned = order['deliveryPartner'] != null;
+                          final shortId = id.length >= 6 ? id.substring(id.length - 6).toUpperCase() : id;
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: Card(
+                              child: Padding(
+                                padding: const EdgeInsets.all(17),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(children: [
+                                      Expanded(child: Text('ORDER #$shortId', style: const TextStyle(fontSize: 11, letterSpacing: 1, color: Color(0xFF718099), fontWeight: FontWeight.w800))),
+                                      Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), decoration: BoxDecoration(color: const Color(0xFFE7EEFF), borderRadius: BorderRadius.circular(30)), child: Text(status.replaceAll('_', ' '), style: const TextStyle(color: Color(0xFF2456C5), fontSize: 11, fontWeight: FontWeight.w800))),
+                                    ]),
+                                    const SizedBox(height: 12),
+                                    Text(order['customer']?['name'] ?? 'Customer', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: Color(0xFF17233B))),
+                                    const SizedBox(height: 4),
+                                    Text('Pickup · ${order['store']?['name'] ?? 'Store'}', style: const TextStyle(color: Color(0xFF718099), fontSize: 13)),
+                                    const SizedBox(height: 11),
+                                    Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                      const Icon(Icons.location_on_outlined, color: Color(0xFF2456C5), size: 18),
+                                      const SizedBox(width: 6),
+                                      Expanded(child: Text(address.isEmpty ? 'Delivery address not provided' : address, style: const TextStyle(color: Color(0xFF52617A), fontSize: 13))),
+                                    ]),
+                                    if (assigned && (status == 'picked_up' || status == 'on_the_way')) ...[
+                                      const SizedBox(height: 10),
+                                      OutlinedButton.icon(
+                                        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => DeliveryMapScreen(address: address))),
+                                        icon: const Icon(Icons.map_outlined),
+                                        label: const Text('Open delivery map'),
                                       ),
-                                    ),
-
-                                  if (!assigned && status == 'ready')
-                                    FilledButton(
-                                      onPressed: () => claim(id),
-                                      child: const Text(
-                                        'Accept delivery',
-                                      ),
-                                    ),
-
-                                  if (assigned && next != null)
-                                    FilledButton(
-                                      onPressed: () => update(id, next),
-                                      child: Text(
-                                        next
-                                            .replaceAll('_', ' ')
-                                            .toUpperCase(),
-                                      ),
-                                    ),
-                                ],
+                                    ],
+                                    if (!assigned && status == 'ready') ...[
+                                      const SizedBox(height: 14),
+                                      FilledButton.icon(onPressed: () => claim(id), icon: const Icon(Icons.check_circle_outline), label: const Text('Accept delivery')),
+                                    ],
+                                    if (assigned && next != null) ...[
+                                      const SizedBox(height: 14),
+                                      FilledButton.icon(onPressed: () => update(id, next), icon: const Icon(Icons.arrow_forward_rounded), label: Text(next.replaceAll('_', ' ').toUpperCase())),
+                                    ],
+                                  ],
+                                ),
                               ),
                             ),
                           );
-                        },
-                      ),
-                    ),
+                        }),
+                    ],
+                  ),
+                ),
     );
-  }
-}
+  }}
 
 // ==========================================
 // DELIVERY MAP
