@@ -27,4 +27,35 @@ exports.login = async (req, res, next) => {
   } catch (e) { next(e); }
 };
 
-exports.me = (req, res) => res.json({ user: { id: req.user._id, name: req.user.name, email: req.user.email, role: req.user.role } });
+exports.me = (req, res) => res.json({ user: {
+  id: req.user._id, name: req.user.name, email: req.user.email,
+  role: req.user.role, phone: req.user.phone || "", addresses: req.user.addresses || []
+} });
+
+exports.updateProfile = async (req, res, next) => {
+  try {
+    const { name, phone, addresses } = req.body;
+    if (name !== undefined) {
+      if (!String(name).trim()) return res.status(400).json({ message: "Name cannot be empty" });
+      req.user.name = String(name).trim().slice(0, 80);
+    }
+    if (phone !== undefined) req.user.phone = String(phone).trim().slice(0, 25);
+    if (addresses !== undefined) {
+      if (!Array.isArray(addresses) || addresses.length > 20) return res.status(400).json({ message: "Provide up to 20 saved addresses" });
+      const cleaned = addresses.map((item, index) => ({
+        label: String(item.label || "Home").trim().slice(0, 40),
+        fullAddress: String(item.fullAddress || "").trim().slice(0, 400),
+        isDefault: Boolean(item.isDefault) || (index === 0 && addresses.length === 1)
+      }));
+      if (cleaned.some(item => !item.fullAddress)) return res.status(400).json({ message: "Every saved address needs a full address" });
+      const defaults = cleaned.filter(item => item.isDefault);
+      if (defaults.length > 1) return res.status(400).json({ message: "Choose only one default address" });
+      req.user.addresses = cleaned;
+    }
+    await req.user.save();
+    res.json({ message: "Profile updated", user: {
+      id: req.user._id, name: req.user.name, email: req.user.email,
+      role: req.user.role, phone: req.user.phone || "", addresses: req.user.addresses || []
+    }});
+  } catch (e) { next(e); }
+};
