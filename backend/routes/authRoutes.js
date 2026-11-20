@@ -5,4 +5,5 @@ router.post("/register", controller.register);
 router.post("/login", controller.login);
 router.get("/me", protect, controller.me);
 router.patch("/profile", protect, allow("customer"), controller.updateProfile);
+router.patch("/availability", protect, allow("delivery"), controller.updateAvailability);
 module.exports = router;
