@@ -1,55 +1,46 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import api from "./api";
 
+const money = value => new Intl.NumberFormat("en-IN",{style:"currency",currency:"INR",maximumFractionDigits:0}).format(Number(value||0));
+const pretty = value => String(value||"").replaceAll("_"," ").replace(/\b\w/g,c=>c.toUpperCase());
+
 export default function App() {
-  const [token, setToken] = useState(localStorage.getItem("qd_token"));
-  const [email, setEmail] = useState("admin@quickdeliver.test");
-  const [password, setPassword] = useState("Admin123!");
-  const [user, setUser] = useState(null);
-  const [tab, setTab] = useState("overview");
-  const [stores, setStores] = useState([]);
-  const [products, setProducts] = useState([]);
-  const [orders, setOrders] = useState([]);
-  const [error, setError] = useState("");
-  const [product, setProduct] = useState({ name:"", price:"", store:"", type:"grocery", category:"general", stock:"10" });
+  const [token,setToken]=useState(localStorage.getItem("qd_token"));
+  const [email,setEmail]=useState("admin@quickdeliver.test");
+  const [password,setPassword]=useState("Admin123!");
+  const [user,setUser]=useState(null);
+  const [tab,setTab]=useState("overview");
+  const [stores,setStores]=useState([]);
+  const [products,setProducts]=useState([]);
+  const [orders,setOrders]=useState([]);
+  const [error,setError]=useState("");
+  const [query,setQuery]=useState("");
+  const [product,setProduct]=useState({name:"",price:"",store:"",type:"grocery",category:"general",stock:"10"});
+  const [busy,setBusy]=useState(false);
 
-  async function load() {
-    const [me, st, pr, ord] = await Promise.all([
-      api.get("/auth/me"), api.get("/stores/my-stores"), api.get("/products"), api.get("/orders/store")
-    ]);
-    setUser(me.data.user); setStores(st.data.stores); setProducts(pr.data.products); setOrders(ord.data.orders);
-    if (!product.store && st.data.stores[0]) setProduct(p => ({...p, store: st.data.stores[0]._id}));
+  async function load(){
+    const [me,st,pr,ord]=await Promise.all([api.get("/auth/me"),api.get("/stores/my-stores"),api.get("/products"),api.get("/orders/store")]);
+    setUser(me.data.user);setStores(st.data.stores||[]);setProducts(pr.data.products||[]);setOrders(ord.data.orders||[]);
+    if(!product.store&&st.data.stores?.[0])setProduct(p=>({...p,store:st.data.stores[0]._id}));
   }
-  useEffect(() => { if (token) load().catch(e => setError(e.response?.data?.message || "Could not load dashboard")); }, [token]);
-
-  async function login(e) {
-    e.preventDefault(); setError("");
-    try {
-      const r = await api.post("/auth/login", { email, password });
-      localStorage.setItem("qd_token", r.data.token); setToken(r.data.token);
-    } catch (e) { setError(e.response?.data?.message || "Login failed"); }
-  }
-  function logout() { localStorage.removeItem("qd_token"); setToken(null); setUser(null); }
-  async function addProduct(e) {
-    e.preventDefault();
-    try { await api.post("/products", {...product, price:Number(product.price), stock:Number(product.stock)}); setProduct(p=>({...p,name:"",price:""})); await load(); }
-    catch(e) { setError(e.response?.data?.message || "Could not add product"); }
-  }
-  async function updateStatus(id, status) {
-    try { await api.patch(`/orders/${id}/status`, {status}); await load(); }
-    catch(e) { setError(e.response?.data?.message || "Could not update order"); }
-  }
-
-  if (!token) return <main className="login"><form className="panel" onSubmit={login}><div className="brand">🛵 QuickDeliver</div><h1>Dashboard sign in</h1><label>Email<input value={email} onChange={e=>setEmail(e.target.value)} type="email"/></label><label>Password<input value={password} onChange={e=>setPassword(e.target.value)} type="password"/></label>{error&&<p className="error">{error}</p>}<button>Sign in</button><small>Seed admin: admin@quickdeliver.test / Admin123!</small></form></main>;
-
-  return <div className="shell"><aside><div className="brand">🛵 QuickDeliver</div><p>{user?.name}</p><nav>{["overview","products","orders","stores"].map(x=><button className={tab===x?"active":""} onClick={()=>setTab(x)} key={x}>{x[0].toUpperCase()+x.slice(1)}</button>)}</nav><button className="secondary" onClick={logout}>Log out</button></aside><main className="content"><header><div><h1>{tab[0].toUpperCase()+tab.slice(1)}</h1><p>Food and grocery delivery operations</p></div><span className="pill">{user?.role}</span></header>{error&&<p className="error">{error}</p>}
-    {tab==="overview"&&<><section className="stats"><article><b>{stores.length}</b><span>Stores</span></article><article><b>{products.length}</b><span>Products</span></article><article><b>{orders.length}</b><span>Orders</span></article></section><h2>Recent orders</h2><OrderList orders={orders.slice(0,6)} updateStatus={updateStatus}/></>}
-    {tab==="products"&&<><form className="panel product-form" onSubmit={addProduct}><h2>Add product</h2><input placeholder="Product name" value={product.name} onChange={e=>setProduct({...product,name:e.target.value})} required/><input placeholder="Price" type="number" min="0" value={product.price} onChange={e=>setProduct({...product,price:e.target.value})} required/><select value={product.store} onChange={e=>setProduct({...product,store:e.target.value})}>{stores.map(s=><option value={s._id} key={s._id}>{s.name}</option>)}</select><select value={product.type} onChange={e=>setProduct({...product,type:e.target.value})}><option value="grocery">Grocery</option><option value="food">Food</option></select><input placeholder="Category" value={product.category} onChange={e=>setProduct({...product,category:e.target.value})}/><input type="number" min="0" placeholder="Stock" value={product.stock} onChange={e=>setProduct({...product,stock:e.target.value})}/><button>Add product</button></form><h2>Products</h2><div className="grid">{products.map(p=><article className="panel" key={p._id}><b>{p.name}</b><p>₹{p.price} · {p.type} · Stock {p.stock}</p><small>{p.store?.name}</small></article>)}</div></>}
-    {tab==="orders"&&<OrderList orders={orders} updateStatus={updateStatus}/>}
-    {tab==="stores"&&<div className="grid">{stores.map(s=><article className="panel" key={s._id}><b>{s.name}</b><p>{s.type} · {s.address}</p><small>Owner: {s.owner?.name || "—"}</small></article>)}</div>}
+  useEffect(()=>{if(token)load().catch(e=>{setError(e.response?.data?.message||"Could not load dashboard");if(e.response?.status===401)logout();});},[token]);
+  async function login(e){e.preventDefault();setError("");setBusy(true);try{const r=await api.post("/auth/login",{email,password});localStorage.setItem("qd_token",r.data.token);setToken(r.data.token);}catch(e){setError(e.response?.data?.message||"Login failed");}finally{setBusy(false);}}
+  function logout(){localStorage.removeItem("qd_token");setToken(null);setUser(null);}
+  async function addProduct(e){e.preventDefault();setError("");try{await api.post("/products",{...product,price:Number(product.price),stock:Number(product.stock)});setProduct(p=>({...p,name:"",price:""}));await load();}catch(e){setError(e.response?.data?.message||"Could not add product");}}
+  async function updateStatus(id,status){try{await api.patch(`/orders/${id}/status`,{status});await load();}catch(e){setError(e.response?.data?.message||"Could not update order");}}
+  const filteredProducts=useMemo(()=>products.filter(p=>`${p.name} ${p.type} ${p.store?.name}`.toLowerCase().includes(query.toLowerCase())),[products,query]);
+  const filteredOrders=useMemo(()=>orders.filter(o=>`${o._id} ${o.customer?.name} ${o.store?.name} ${o.status}`.toLowerCase().includes(query.toLowerCase())),[orders,query]);
+  if(!token)return <main className="login"><form className="panel login-card" onSubmit={login}><div className="brand-mark">Q</div><div className="brand">QuickDeliver</div><span className="eyebrow">OPERATIONS CONSOLE</span><h1>Welcome back</h1><p className="muted">Sign in to manage your delivery business.</p><label>Email address<input value={email} onChange={e=>setEmail(e.target.value)} type="email" required/></label><label>Password<input value={password} onChange={e=>setPassword(e.target.value)} type="password" required/></label>{error&&<p className="error">{error}</p>}<button disabled={busy}>{busy?"Signing in…":"Sign in to dashboard"}</button><small>Demo admin: admin@quickdeliver.test · Admin123!</small></form></main>;
+  const nav=[["overview","Overview","⌂"],["orders","Orders","▤"],["products","Products","▦"],["stores","Stores","⌖"]];
+  return <div className="shell"><aside><div className="brand-row"><div className="brand-mark">Q</div><div><div className="brand">QuickDeliver</div><small>OPERATIONS</small></div></div><div className="workspace"><span className="avatar">{(user?.name||"A").slice(0,1).toUpperCase()}</span><div><b>{user?.name||"Administrator"}</b><small>{user?.role||"Admin account"}</small></div></div><span className="nav-label">WORKSPACE</span><nav>{nav.map(([id,label,icon])=><button key={id} className={tab===id?"active":""} onClick={()=>{setTab(id);setQuery("");}}><span className="nav-icon">{icon}</span>{label}{id==="orders"&&<i>{orders.length}</i>}</button>)}</nav><div className="sidebar-bottom"><div className="secure-note"> <span>●</span> All systems connected</div><button className="secondary" onClick={logout}>↪ &nbsp; Log out</button></div></aside>
+  <main className="content"><header><div><span className="eyebrow">QUICKDELIVER / {tab.toUpperCase()}</span><h1>{pretty(tab)}</h1><p className="muted">{tab==="overview"?"Here’s what’s happening with your business today.":`Manage your ${tab} and keep operations moving.`}</p></div><div className="header-actions"><span className="online-dot">● &nbsp; Live workspace</span><button className="refresh" onClick={()=>load()}>↻ &nbsp; Refresh</button></div></header>{error&&<p className="error">{error}</p>}
+  {tab==="overview"&&<><section className="welcome-strip"><div><span className="eyebrow light">YOUR BUSINESS AT A GLANCE</span><h2>Good work starts with a clear view.</h2><p>Track your stores, catalogue and incoming orders from one place.</p></div><div className="welcome-art">✦</div></section><section className="stats"><article><span className="stat-icon mint">⌖</span><span className="stat-label">ACTIVE STORES</span><b>{stores.length}</b><small>Stores in your workspace</small></article><article><span className="stat-icon peach">▦</span><span className="stat-label">PRODUCT CATALOGUE</span><b>{products.length}</b><small>Products available</small></article><article><span className="stat-icon blue">▤</span><span className="stat-label">TOTAL ORDERS</span><b>{orders.length}</b><small>Orders received</small></article></section><div className="section-heading"><div><h2>Recent orders</h2><p className="muted">The latest activity across your stores.</p></div><button className="text-button" onClick={()=>setTab("orders")}>View all orders →</button></div><OrderList orders={orders.slice(0,5)} updateStatus={updateStatus}/></>}
+  {tab==="orders"&&<><div className="toolbar"><div><h2>All orders</h2><p className="muted">{orders.length} orders in your workspace</p></div><input className="search" placeholder="Search orders…" value={query} onChange={e=>setQuery(e.target.value)}/></div><OrderList orders={filteredOrders} updateStatus={updateStatus}/></>}
+  {tab==="products"&&<><div className="toolbar"><div><h2>Product catalogue</h2><p className="muted">Add and review items offered by your stores.</p></div><input className="search" placeholder="Search products…" value={query} onChange={e=>setQuery(e.target.value)}/></div><form className="panel product-form" onSubmit={addProduct}><h3>Add a product</h3><input placeholder="Product name" value={product.name} onChange={e=>setProduct({...product,name:e.target.value})} required/><input placeholder="Price (₹)" type="number" min="0" value={product.price} onChange={e=>setProduct({...product,price:e.target.value})} required/><select value={product.store} onChange={e=>setProduct({...product,store:e.target.value})} required>{stores.map(s=><option value={s._id} key={s._id}>{s.name}</option>)}</select><select value={product.type} onChange={e=>setProduct({...product,type:e.target.value})}><option value="grocery">Grocery</option><option value="food">Food</option></select><input placeholder="Category" value={product.category} onChange={e=>setProduct({...product,category:e.target.value})}/><input type="number" min="0" placeholder="Stock quantity" value={product.stock} onChange={e=>setProduct({...product,stock:e.target.value})}/><button>Add product +</button></form><div className="grid">{filteredProducts.map(p=><article className="panel product-card" key={p._id}><span className="product-symbol">{p.type==="food"?"♨":"▧"}</span><div><b>{p.name}</b><small>{p.store?.name||"Store not specified"}</small></div><strong>{money(p.price)}</strong><span className="pill">Stock · {p.stock}</span></article>)}</div></>}
+  {tab==="stores"&&<><div className="toolbar"><div><h2>Your stores</h2><p className="muted">Stores connected to this account.</p></div></div><div className="grid">{stores.map(s=><article className="panel store-card" key={s._id}><span className="store-symbol">⌖</span><h3>{s.name}</h3><span className="pill">{pretty(s.type)}</span><p>{s.address||"Address not provided"}</p><small>Store owner · {s.owner?.name||"—"}</small></article>)}</div></>}
   </main></div>;
 }
-function OrderList({orders,updateStatus}) {
-  if(!orders.length) return <p>No orders yet.</p>;
-  return <div className="stack">{orders.map(o=><article className="panel order" key={o._id}><div><b>Order #{o._id.slice(-6)}</b><p>{o.customer?.name || "Customer"} · {o.store?.name || "Store"}</p><small>{o.items?.map(i=>`${i.name} × ${i.quantity}`).join(", ")}</small><p><b>₹{o.total}</b> · <span className="pill">{o.status}</span></p></div><select value={o.status} onChange={e=>updateStatus(o._id,e.target.value)}><option value="accepted">Accepted</option><option value="preparing">Preparing</option><option value="ready">Ready</option><option value="delivered">Delivered</option><option value="cancelled">Cancelled</option></select></article>)}</div>;
+function OrderList({orders,updateStatus}){
+ if(!orders.length)return <div className="empty-state"><span>▤</span><b>No orders found</b><p>New orders will appear here when customers check out.</p></div>;
+ return <div className="stack">{orders.map(o=><article className="panel order" key={o._id}><div className="order-main"><span className="order-icon">▤</span><div><b>Order #{o._id.slice(-6).toUpperCase()}</b><p>{o.customer?.name||"Customer"} <span>·</span> {o.store?.name||"Store"}</p><small>{o.items?.map(i=>`${i.name} × ${i.quantity}`).join(", ")}</small></div></div><div className="order-total"><b>{money(o.total)}</b><span className="pill">{pretty(o.status)}</span></div><select aria-label="Update order status" value={o.status} onChange={e=>updateStatus(o._id,e.target.value)}><option value="accepted">Accepted</option><option value="preparing">Preparing</option><option value="ready">Ready</option><option value="delivered">Delivered</option><option value="cancelled">Cancelled</option></select></article>)}</div>;
 }
