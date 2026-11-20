@@ -1,0 +1,24 @@
+
+# Node
+node_modules/
+.env
+.env.*
+!.env.example
+npm-debug.log*
+
+# Flutter
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+
+# Android
+**/android/.gradle/
+**/android/local.properties
+
+# IDE and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

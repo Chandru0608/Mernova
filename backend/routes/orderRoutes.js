@@ -1,0 +1,11 @@
+const router = require("express").Router();
+const c = require("../controllers/orderController");
+const { protect, allow } = require("../middleware/auth");
+router.post("/checkout", protect, allow("customer"), c.checkout);
+router.get("/my", protect, allow("customer"), c.myOrders);
+router.get("/store", protect, allow("store","admin"), c.storeOrders);
+router.get("/delivery", protect, allow("delivery"), c.deliveryOrders);
+router.post("/:id/claim", protect, allow("delivery"), c.claim);
+router.post("/:id/assign", protect, allow("admin"), c.assign);
+router.patch("/:id/status", protect, allow("store","delivery","admin"), c.updateStatus);
+module.exports = router;
