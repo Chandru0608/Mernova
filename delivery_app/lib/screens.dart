@@ -344,7 +344,7 @@ class _PartnerHomeState extends State<PartnerHome> {
                                     if (assigned && (status == 'picked_up' || status == 'on_the_way')) ...[
                                       const SizedBox(height: 10),
                                       OutlinedButton.icon(
-                                        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => DeliveryMapScreen(address: address))),
+                                        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => DeliveryMapScreen(address: address, orderId: id))),
                                         icon: const Icon(Icons.map_outlined),
                                         label: const Text('Open delivery map'),
                                       ),
