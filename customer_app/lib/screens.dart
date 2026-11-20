@@ -63,8 +63,22 @@ class _HomeScreenState extends State<HomeScreen> {
   }
   Future<void> checkout() async {
     final items=cart.entries.where((e)=>e.value>0).map((e)=>{'productId':e.key,'quantity':e.value}).toList();if(items.isEmpty)return;
-    final address=TextEditingController();
-    final ok=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(title:const Text('Where should we deliver?'),content:TextField(controller:address,maxLines:3,decoration:const InputDecoration(hintText:'House / flat, street, area, landmark')),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Place order'))]));
+    var savedAddresses=<Map<String,dynamic>>[];
+    try {
+      final profile=await Api.get('/auth/me');
+      savedAddresses=List<Map<String,dynamic>>.from((profile['user']?['addresses']??[]).map((x)=>Map<String,dynamic>.from(x)));
+    } catch (_) {}
+    final defaultAddress=savedAddresses.where((a)=>a['isDefault']==true).firstOrNull;
+    final address=TextEditingController(text:(defaultAddress?['fullAddress']??'').toString());
+    final ok=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(title:const Text('Where should we deliver?'),content:Column(mainAxisSize:MainAxisSize.min,children:[
+      if(savedAddresses.isNotEmpty) DropdownButtonFormField<String>(
+        value:defaultAddress==null?null:defaultAddress['fullAddress'] as String,
+        decoration:const InputDecoration(labelText:'Choose saved address'),
+        items:savedAddresses.map((a)=>DropdownMenuItem<String>(value:a['fullAddress'] as String,child:Text('${a['label']} ${a['isDefault']==true?'· Default':''}',overflow:TextOverflow.ellipsis))).toList(),
+        onChanged:(value){if(value!=null){address.text=value;}},
+      ),
+      const SizedBox(height:12),TextField(controller:address,maxLines:3,decoration:const InputDecoration(hintText:'House / flat, street, area, landmark',labelText:'Delivery address'))
+    ]),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Place order'))]));
     if(ok!=true||address.text.trim().isEmpty)return;
     try{final d=await Api.post('/orders/checkout',{'items':items,'address':address.text.trim()});if(!mounted)return;setState(()=>cart.clear());showDialog(context:context,builder:(ctx)=>AlertDialog(icon:const Icon(Icons.check_circle,color:_green,size:42),title:const Text('Order placed!'),content:Text(d['message']??'Your order has been received.'),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Done'))]));}
     catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
