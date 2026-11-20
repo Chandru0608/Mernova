@@ -44,7 +44,7 @@ exports.storeOrders = async (req, res, next) => {
 };
 exports.deliveryOrders = async (req, res, next) => {
   try {
-    const orders = await Order.find({ $or: [{ deliveryPartner: req.user._id }, { deliveryPartner: null, status: "ready" }] })
+    const orders = await Order.find({ $or: [{ deliveryPartner: req.user._id }, ...(req.user.isAvailable !== false ? [{ deliveryPartner: null, status: "ready" }] : [])] })
       .populate("customer", "name phone").populate("store", "name address").sort({ createdAt: -1 });
     res.json({ count: orders.length, orders });
   } catch (e) { next(e); }
@@ -84,6 +84,7 @@ exports.updateStatus = async (req, res, next) => {
 
 exports.claim = async (req, res, next) => {
   try {
+    if (req.user.isAvailable === false) return res.status(403).json({ message: "Switch to Available before accepting a delivery" });
     const order = await Order.findOneAndUpdate(
       { _id: req.params.id, status: "ready", deliveryPartner: null },
       { $set: { deliveryPartner: req.user._id } },
