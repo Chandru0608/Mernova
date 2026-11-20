@@ -95,3 +95,34 @@ exports.claim = async (req, res, next) => {
     res.json({ message: "Delivery accepted", order });
   } catch (e) { next(e); }
 };
+
+exports.updateDeliveryLocation = async (req, res, next) => {
+  try {
+    const latitude = Number(req.body.latitude);
+    const longitude = Number(req.body.longitude);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+      return res.status(400).json({ message: "Valid latitude and longitude are required" });
+    }
+    const order = await Order.findOne({ _id: req.params.id, deliveryPartner: req.user._id, status: { $in: ["picked_up", "on_the_way"] } });
+    if (!order) return res.status(404).json({ message: "Active assigned delivery not found" });
+    order.deliveryLocation = { latitude, longitude, updatedAt: new Date() };
+    await order.save();
+    req.app.get("io").to(`user:${order.customer}`).emit("order:location", {
+      orderId: String(order._id), latitude, longitude, updatedAt: order.deliveryLocation.updatedAt
+    });
+    res.json({ message: "Delivery location updated", deliveryLocation: order.deliveryLocation });
+  } catch (e) { next(e); }
+};
+
+exports.tracking = async (req, res, next) => {
+  try {
+    const order = await Order.findOne({ _id: req.params.id, customer: req.user._id })
+      .select("status deliveryPartner deliveryLocation address")
+      .populate("deliveryPartner", "name phone");
+    if (!order) return res.status(404).json({ message: "Order not found" });
+    res.json({ tracking: {
+      orderId: order._id, status: order.status, address: order.address,
+      deliveryPartner: order.deliveryPartner, location: order.deliveryLocation || null
+    }});
+  } catch (e) { next(e); }
+};
