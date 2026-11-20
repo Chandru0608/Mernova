@@ -29,7 +29,7 @@ exports.login = async (req, res, next) => {
 
 exports.me = (req, res) => res.json({ user: {
   id: req.user._id, name: req.user.name, email: req.user.email,
-  role: req.user.role, phone: req.user.phone || "", addresses: req.user.addresses || []
+  role: req.user.role, phone: req.user.phone || "", addresses: req.user.addresses || [], isAvailable: req.user.isAvailable !== false
 } });
 
 exports.updateProfile = async (req, res, next) => {
@@ -57,5 +57,14 @@ exports.updateProfile = async (req, res, next) => {
       id: req.user._id, name: req.user.name, email: req.user.email,
       role: req.user.role, phone: req.user.phone || "", addresses: req.user.addresses || []
     }});
+  } catch (e) { next(e); }
+};
+
+exports.updateAvailability = async (req, res, next) => {
+  try {
+    if (typeof req.body.isAvailable !== "boolean") return res.status(400).json({ message: "isAvailable must be true or false" });
+    req.user.isAvailable = req.body.isAvailable;
+    await req.user.save();
+    res.json({ message: req.user.isAvailable ? "You are now available for deliveries" : "You are now unavailable for new deliveries", isAvailable: req.user.isAvailable });
   } catch (e) { next(e); }
 };
