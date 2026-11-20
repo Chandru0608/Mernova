@@ -29,6 +29,12 @@ class Api {
     if (r.statusCode >= 400) throw Exception(data['message'] ?? 'Request failed');
     return data;
   }
+  static Future<Map<String,dynamic>> patch(String path, Map<String,dynamic> body) async {
+    final r = await http.patch(Uri.parse('${AppConfig.apiBaseUrl}$path'), headers: headers, body: jsonEncode(body));
+    final data = jsonDecode(r.body) as Map<String,dynamic>;
+    if (r.statusCode >= 400) throw Exception(data['message'] ?? 'Request failed');
+    return data;
+  }
   static Future<Map<String,dynamic>> get(String path) async {
     final r = await http.get(Uri.parse('${AppConfig.apiBaseUrl}$path'), headers: headers);
     final data = jsonDecode(r.body) as Map<String,dynamic>;
