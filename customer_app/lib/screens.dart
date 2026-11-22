@@ -2,7 +2,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
 import 'api.dart';
+import 'feature_tools.dart';
 
 const _green = Color(0xFF147D5A);
 const _ink = Color(0xFF172B25);
@@ -75,23 +78,24 @@ class _HomeScreenState extends State<HomeScreen> {
     for (final item in savedAddresses) {
       if (item['isDefault']==true) { defaultAddress=item; break; }
     }
+    Map<String,dynamic>? selectedAddress = defaultAddress;
     final address=TextEditingController(text:(defaultAddress?['fullAddress']??'').toString());
     final ok=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(title:const Text('Where should we deliver?'),content:Column(mainAxisSize:MainAxisSize.min,children:[
       if(savedAddresses.isNotEmpty) DropdownButtonFormField<String>(
         value:defaultAddress==null?null:defaultAddress['fullAddress'] as String,
         decoration:const InputDecoration(labelText:'Choose saved address'),
         items:savedAddresses.map((a)=>DropdownMenuItem<String>(value:a['fullAddress'] as String,child:Text('${a['label']} ${a['isDefault']==true?'· Default':''}',overflow:TextOverflow.ellipsis))).toList(),
-        onChanged:(value){if(value!=null){address.text=value;}},
+        onChanged:(value){if(value!=null){selectedAddress=savedAddresses.firstWhere((a)=>a['fullAddress']==value);address.text=value;}},
       ),
       const SizedBox(height:12),TextField(controller:address,maxLines:3,decoration:const InputDecoration(hintText:'House / flat, street, area, landmark',labelText:'Delivery address'))
     ]),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Place order'))]));
     if(ok!=true||address.text.trim().isEmpty)return;
-    try{final d=await Api.post('/orders/checkout',{'items':items,'address':address.text.trim()});if(!mounted)return;setState(()=>cart.clear());showDialog(context:context,builder:(ctx)=>AlertDialog(icon:const Icon(Icons.check_circle,color:_green,size:42),title:const Text('Order placed!'),content:Text(d['message']??'Your order has been received.'),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Done'))]));}
+    try{final savedLat=selectedAddress?['latitude']; final savedLng=selectedAddress?['longitude']; final d=await Api.post('/orders/checkout',{'items':items,'address':address.text.trim(),if(savedLat is num && savedLng is num) 'deliveryLocation':{'latitude':savedLat,'longitude':savedLng}});if(!mounted)return;setState(()=>cart.clear());showDialog(context:context,builder:(ctx)=>AlertDialog(icon:const Icon(Icons.check_circle,color:_green,size:42),title:const Text('Order placed!'),content:Text(d['message']??'Your order has been received.'),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Done'))]));}
     catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
   }
   Future<void> logout() async {await Api.logout();if(!mounted)return;Navigator.pushAndRemoveUntil(context,MaterialPageRoute(builder:(_)=>const LoginScreen()),(_)=>false);}
   @override Widget build(BuildContext context)=>Scaffold(
-    appBar:AppBar(title:const Text('QuickDeliver'),actions:[IconButton(tooltip:'Profile and addresses',onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const ProfileScreen())),icon:const Icon(Icons.account_circle_outlined)),IconButton(tooltip:'My orders',onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const OrdersScreen())),icon:const Icon(Icons.receipt_long_outlined)),IconButton(tooltip:'Log out',onPressed:logout,icon:const Icon(Icons.logout))]),
+    appBar:AppBar(title:const Text('QuickDeliver'),actions:[IconButton(tooltip:'New feature tools',onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const CustomerToolsScreen())),icon:const Icon(Icons.auto_awesome)),IconButton(tooltip:'Profile and addresses',onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const ProfileScreen())),icon:const Icon(Icons.account_circle_outlined)),IconButton(tooltip:'My orders',onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const OrdersScreen())),icon:const Icon(Icons.receipt_long_outlined)),IconButton(tooltip:'Log out',onPressed:logout,icon:const Icon(Icons.logout))]),
     body:Column(children:[
       Padding(padding:const EdgeInsets.fromLTRB(18,8,18,16),child:Container(width:double.infinity,padding:const EdgeInsets.all(20),decoration:BoxDecoration(color:_green,borderRadius:BorderRadius.circular(24)),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
         const Text('YOUR DAY, DELIVERED.',style:TextStyle(color:Color(0xFFC8F0D9),fontSize:11,fontWeight:FontWeight.w800,letterSpacing:1.2)),
@@ -105,9 +109,17 @@ class _HomeScreenState extends State<HomeScreen> {
       Expanded(child:loading?const Center(child:CircularProgressIndicator()):error.isNotEmpty?Center(child:Padding(padding:const EdgeInsets.all(24),child:Text(error,textAlign:TextAlign.center))):RefreshIndicator(onRefresh:load,child:visibleProducts.isEmpty?ListView(children:const [SizedBox(height:90),Center(child:Text('No products in this category yet.'))]):GridView.builder(padding:const EdgeInsets.fromLTRB(16,6,16,18),gridDelegate:const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:2,mainAxisSpacing:12,crossAxisSpacing:12,childAspectRatio:.82),itemCount:visibleProducts.length,itemBuilder:(ctx,i){
         final p=visibleProducts[i];final id=p['_id'].toString();final q=cart[id]??0;final grocery=(p['type']??'').toString().toLowerCase()=='grocery';
         return Card(child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-          Expanded(child:Center(child:Container(width:76,height:76,decoration:BoxDecoration(color:grocery?const Color(0xFFEAF5E9):const Color(0xFFFFF1E5),borderRadius:BorderRadius.circular(23)),child:Icon(grocery?Icons.shopping_basket_rounded:Icons.lunch_dining_rounded,size:39,color:grocery?_green:const Color(0xFFCC7A32))))),
+          Expanded(child: Center(child: Container(
+            width: double.infinity, height: 94,
+            decoration: BoxDecoration(color: grocery ? const Color(0xFFEAF5E9) : const Color(0xFFFFF1E5), borderRadius: BorderRadius.circular(16)),
+            clipBehavior: Clip.antiAlias,
+            child: (p['imageUrl'] ?? '').toString().isNotEmpty
+              ? Image.network(p['imageUrl'].toString(), fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Icon(grocery ? Icons.shopping_basket_rounded : Icons.lunch_dining_rounded, size: 39, color: grocery ? _green : const Color(0xFFCC7A32)))
+              : Icon(grocery ? Icons.shopping_basket_rounded : Icons.lunch_dining_rounded, size: 39, color: grocery ? _green : const Color(0xFFCC7A32)),
+          ))),
           Text(p['name']??'Product',maxLines:2,overflow:TextOverflow.ellipsis,style:const TextStyle(fontWeight:FontWeight.w800,color:_ink)),
-          const SizedBox(height:4),Text('₹${p['price']} · ${p['type']??'Product'}',style:const TextStyle(color:_muted,fontSize:12)),
+          const SizedBox(height:4),Text('₹${p['price']} · ${p['unit'] ?? p['type'] ?? 'Product'}',style:const TextStyle(color:_muted,fontSize:12)),
           const SizedBox(height:9),Row(children:[Expanded(child:Text('₹${((p['price'] as num).toDouble()*q).toStringAsFixed(0)}',style:const TextStyle(fontWeight:FontWeight.w800,color:_green))),if(q==0)IconButton.filledTonal(onPressed:()=>setState(()=>cart[id]=1),icon:const Icon(Icons.add),visualDensity:VisualDensity.compact)else Row(children:[IconButton(onPressed:()=>setState(()=>cart[id]=q-1),icon:const Icon(Icons.remove_circle_outline),visualDensity:VisualDensity.compact),Text('$q',style:const TextStyle(fontWeight:FontWeight.w800)),IconButton(onPressed:()=>setState(()=>cart[id]=q+1),icon:const Icon(Icons.add_circle),visualDensity:VisualDensity.compact)])])
         ])));
       }))),
@@ -123,7 +135,7 @@ class _OrdersScreenState extends State<OrdersScreen>{
   Future<void> load()async{try{final d=await Api.get('/orders/my');if(mounted)setState(()=>orders=d['orders']??[]);}catch(e){if(mounted)setState(()=>error=e.toString());}finally{if(mounted)setState(()=>loading=false);}}
   @override Widget build(BuildContext context)=>Scaffold(appBar:AppBar(title:const Text('Your orders')),body:loading?const Center(child:CircularProgressIndicator()):error.isNotEmpty?Center(child:Text(error)):orders.isEmpty?const Center(child:Column(mainAxisSize:MainAxisSize.min,children:[Icon(Icons.receipt_long_outlined,size:54,color:_muted),SizedBox(height:12),Text('No orders yet',style:TextStyle(fontSize:18,fontWeight:FontWeight.w700)),Text('Your orders will show up here.')])):RefreshIndicator(onRefresh:load,child:ListView.separated(padding:const EdgeInsets.all(16),itemCount:orders.length,separatorBuilder:(_,__)=>const SizedBox(height:12),itemBuilder:(ctx,i){final o=orders[i];final id=o['_id'].toString();return Card(child:Padding(padding:const EdgeInsets.all(17),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
     Row(children:[Expanded(child:Text('Order #${id.substring(id.length-6)}',style:const TextStyle(fontWeight:FontWeight.w800,fontSize:16))),Container(padding:const EdgeInsets.symmetric(horizontal:10,vertical:6),decoration:BoxDecoration(color:const Color(0xFFE5F3EA),borderRadius:BorderRadius.circular(30)),child:Text((o['status']??'placed').toString().replaceAll('_',' '),style:const TextStyle(color:_green,fontWeight:FontWeight.w700,fontSize:12)))]),
-    const SizedBox(height:9),Text((o['items'] as List? ?? []).map((x)=>'${x['name']} × ${x['quantity']}').join(' · '),style:const TextStyle(color:_muted)),const SizedBox(height:9),Text('₹${o['total']}  ·  ${o['store']?['name']??'QuickDeliver store'}',style:const TextStyle(fontWeight:FontWeight.w700,color:_ink)),if((o['address']??'').toString().isNotEmpty)Padding(padding:const EdgeInsets.only(top:7),child:Text(o['address'],style:const TextStyle(color:_muted,fontSize:12))),if(o['deliveryPartner']!=null && ['picked_up','on_the_way'].contains(o['status']))Padding(padding:const EdgeInsets.only(top:12),child:FilledButton.icon(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>LiveTrackingScreen(orderId:id))),icon:const Icon(Icons.location_searching_rounded),label:const Text('Track delivery partner')))
+    const SizedBox(height:9),Text((o['items'] as List? ?? []).map((x)=>'${x['name']} × ${x['quantity']}').join(' · '),style:const TextStyle(color:_muted)),const SizedBox(height:9),Text('₹${o['total']}  ·  ${o['store']?['name']??'QuickDeliver store'}',style:const TextStyle(fontWeight:FontWeight.w700,color:_ink)),\n    Text('Items ₹${o['subtotal']??o['total']}  + Delivery ₹${o['deliveryFee']??0}  + Platform ₹${o['platformFee']??0}  + Tax ₹${o['tax']??0}  − Discount ₹${o['discount']??0}',style:const TextStyle(color:_muted,fontSize:12)),if((o['address']??'').toString().isNotEmpty)Padding(padding:const EdgeInsets.only(top:7),child:Text(o['address'],style:const TextStyle(color:_muted,fontSize:12))),if(o['deliveryPartner']!=null && ['picked_up','on_the_way'].contains(o['status']))Padding(padding:const EdgeInsets.only(top:12),child:FilledButton.icon(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>LiveTrackingScreen(orderId:id))),icon:const Icon(Icons.location_searching_rounded),label:const Text('Track delivery partner'))),Padding(padding:const EdgeInsets.only(top:8),child:OutlinedButton.icon(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>CustomerToolsScreen(initialOrderId:id))),icon:const Icon(Icons.auto_awesome),label:const Text('Order tools')))
   ])));})));
 }
 
@@ -138,6 +150,7 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
   final MapController mapController = MapController();
   Timer? refreshTimer;
   LatLng? rider;
+  LatLng? destination;
   String status = 'Loading tracking…', address = '', partnerName = 'Delivery partner', phone = '', error = '';
   DateTime? updatedAt;
   bool loading = true;
@@ -162,10 +175,20 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
           rider = LatLng((loc['latitude'] as num).toDouble(), (loc['longitude'] as num).toDouble());
           updatedAt = loc['updatedAt'] == null ? null : DateTime.tryParse(loc['updatedAt'].toString());
         }
+        final drop = tracking['destination'];
+        if (drop != null && drop['latitude'] != null && drop['longitude'] != null) {
+          destination = LatLng((drop['latitude'] as num).toDouble(), (drop['longitude'] as num).toDouble());
+        }
         error = '';
         loading = false;
       });
-      if (rider != null && mapReady) mapController.move(rider!, 16);
+      if (rider != null && mapReady) {
+        if (destination != null) {
+          mapController.fitCamera(CameraFit.bounds(bounds: LatLngBounds.fromPoints([rider!, destination!]), padding: const EdgeInsets.all(64)));
+        } else {
+          mapController.move(rider!, 16);
+        }
+      }
     } catch (e) {
       if (mounted) setState(() { error = e.toString(); loading = false; });
     }
@@ -180,9 +203,12 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
             const Text('Waiting for partner location', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: _ink)), const SizedBox(height: 7),
             Text(error.isNotEmpty ? error : 'Your delivery partner’s live location will appear here after they start the delivery.', textAlign: TextAlign.center, style: const TextStyle(color: _muted)),
           ])))
-        : FlutterMap(mapController: mapController, options: MapOptions(initialCenter: rider!, initialZoom: 15, onMapReady: () { mapReady = true; if (rider != null) mapController.move(rider!, 16); }), children: [
+        : FlutterMap(mapController: mapController, options: MapOptions(initialCenter: rider!, initialZoom: 15, onMapReady: () { mapReady = true; if (rider != null && destination != null) { mapController.fitCamera(CameraFit.bounds(bounds: LatLngBounds.fromPoints([rider!, destination!]), padding: const EdgeInsets.all(64))); } else if (rider != null) { mapController.move(rider!, 16); } }), children: [
             TileLayer(urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', userAgentPackageName: 'com.example.quickdeliver_customer'),
-            MarkerLayer(markers: [Marker(point: rider!, width: 58, height: 58, child: const Icon(Icons.delivery_dining_rounded, color: _green, size: 48))]),
+            MarkerLayer(markers: [
+              Marker(point: rider!, width: 58, height: 58, child: const Icon(Icons.delivery_dining_rounded, color: _green, size: 48)),
+              if (destination != null) Marker(point: destination!, width: 48, height: 52, child: const Icon(Icons.location_pin, color: Colors.red, size: 46)),
+            ]),
           ])),
       Container(width: double.infinity, padding: const EdgeInsets.all(18), decoration: const BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Color(0x14000000), blurRadius: 12, offset: Offset(0,-3))]), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('ORDER STATUS · ${status.toUpperCase()}', style: const TextStyle(color: _green, fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: .8)),
@@ -192,6 +218,108 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
         const SizedBox(height: 8), Text(updatedAt == null ? 'Location not received yet' : 'Last location update: ${updatedAt!.toLocal().toString().substring(0, 19)}', style: const TextStyle(fontSize: 11, color: _muted)),
         const SizedBox(height: 5), const Text('Map refreshes automatically every 5 seconds while this screen is open.', style: TextStyle(fontSize: 11, color: _muted)),
       ])),
+    ]),
+  );
+}
+
+
+class AddressPickerScreen extends StatefulWidget {
+  const AddressPickerScreen({super.key});
+  @override State<AddressPickerScreen> createState() => _AddressPickerScreenState();
+}
+
+class _AddressPickerScreenState extends State<AddressPickerScreen> {
+  final MapController map = MapController();
+  final house = TextEditingController();
+  final landmark = TextEditingController();
+  final label = TextEditingController(text: 'Home');
+  final address = TextEditingController();
+  LatLng pin = const LatLng(12.9716, 77.5946);
+  bool mapReady = false, locating = false, resolving = false;
+  String? city, postalCode;
+
+  @override void initState() { super.initState(); _useCurrentLocation(); }
+
+  Future<void> _useCurrentLocation() async {
+    setState(() => locating = true);
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        throw Exception('Turn on your phone location to use GPS.');
+      }
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
+        throw Exception('Allow location permission for QuickDeliver.');
+      }
+      final p = await Geolocator.getCurrentPosition(locationSettings: const LocationSettings(accuracy: LocationAccuracy.high));
+      pin = LatLng(p.latitude, p.longitude);
+      await _reverseGeocode();
+      if (mapReady) map.move(pin, 16);
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))));
+    } finally { if (mounted) setState(() => locating = false); }
+  }
+
+  Future<void> _reverseGeocode() async {
+    setState(() => resolving = true);
+    try {
+      final places = await placemarkFromCoordinates(pin.latitude, pin.longitude);
+      if (places.isNotEmpty) {
+        final p = places.first;
+        final parts = [p.name, p.subLocality, p.locality, p.administrativeArea, p.postalCode]
+          .where((x) => x != null && x.trim().isNotEmpty).toList();
+        address.text = parts.join(', ');
+        city = p.locality;
+        postalCode = p.postalCode;
+      }
+    } catch (_) {
+      address.text = '${pin.latitude.toStringAsFixed(6)}, ${pin.longitude.toStringAsFixed(6)}';
+    } finally { if (mounted) setState(() => resolving = false); }
+  }
+
+  Future<void> _selectPin(LatLng point) async { pin = point; await _reverseGeocode(); if (mounted) setState(() {}); }
+
+  void _save() {
+    if (address.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter or select a delivery address.')));
+      return;
+    }
+    Navigator.pop(context, {
+      'label': label.text.trim().isEmpty ? 'Address' : label.text.trim(),
+      'fullAddress': [house.text.trim(), address.text.trim(), if (landmark.text.trim().isNotEmpty) 'Landmark: ${landmark.text.trim()}'].where((x) => x.isNotEmpty).join(', '),
+      'flatOrHouse': house.text.trim(), 'landmark': landmark.text.trim(),
+      'city': city ?? '', 'postalCode': postalCode ?? '',
+      'latitude': pin.latitude, 'longitude': pin.longitude, 'isDefault': false,
+    });
+  }
+
+  @override void dispose() { house.dispose(); landmark.dispose(); label.dispose(); address.dispose(); map.dispose(); super.dispose(); }
+
+  @override Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Choose delivery location')),
+    body: Column(children: [
+      Expanded(child: Stack(children: [
+        FlutterMap(mapController: map, options: MapOptions(initialCenter: pin, initialZoom: 14, onMapReady: () { mapReady = true; map.move(pin, 16); }, onTap: (_, point) => _selectPin(point)), children: [
+          TileLayer(urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', userAgentPackageName: 'com.example.quickdeliver_customer'),
+          MarkerLayer(markers: [Marker(point: pin, width: 48, height: 54, child: const Icon(Icons.location_pin, color: _green, size: 48))]),
+        ]),
+        Positioned(top: 12, left: 12, right: 12, child: Card(child: Padding(padding: const EdgeInsets.all(12), child: Row(children: [
+          const Icon(Icons.touch_app, color: _green), const SizedBox(width: 8),
+          const Expanded(child: Text('Move the map and tap to pin your exact delivery point.')),
+          IconButton(onPressed: locating ? null : _useCurrentLocation, icon: locating ? const SizedBox(width:18,height:18,child:CircularProgressIndicator(strokeWidth:2)) : const Icon(Icons.my_location)),
+        ])))),
+      ])),
+      Container(color: Colors.white, padding: const EdgeInsets.fromLTRB(16, 14, 16, 18), child: SafeArea(top: false, child: Column(children: [
+        TextField(controller: label, decoration: const InputDecoration(labelText: 'Save as (Home, Work, Other)')),
+        const SizedBox(height: 9),
+        TextField(controller: house, decoration: const InputDecoration(labelText: 'Flat / house / building (optional)')),
+        const SizedBox(height: 9),
+        TextField(controller: address, maxLines: 2, decoration: InputDecoration(labelText: 'Selected address', suffixIcon: resolving ? const Padding(padding: EdgeInsets.all(14), child: SizedBox(width:16,height:16,child:CircularProgressIndicator(strokeWidth:2))) : IconButton(onPressed: _reverseGeocode, icon: const Icon(Icons.refresh)))),
+        const SizedBox(height: 9),
+        TextField(controller: landmark, decoration: const InputDecoration(labelText: 'Nearby landmark (optional)')),
+        const SizedBox(height: 12),
+        FilledButton(onPressed: _save, child: const Text('Save this address')),
+      ]))),
     ]),
   );
 }
@@ -221,10 +349,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
     catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
     finally{if(mounted)setState(()=>saving=false);}
   }
-  Future<void> addAddress()async{
-    final label=TextEditingController(text:'Home'),address=TextEditingController();
-    final ok=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(title:const Text('Add a saved address'),content:Column(mainAxisSize:MainAxisSize.min,children:[TextField(controller:label,decoration:const InputDecoration(labelText:'Label (Home, Work…)')),const SizedBox(height:12),TextField(controller:address,maxLines:3,decoration:const InputDecoration(labelText:'Full delivery address'))]),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Add address'))]));
-    if(ok==true&&address.text.trim().isNotEmpty){setState(()=>addresses.add({'label':label.text.trim().isEmpty?'Address':label.text.trim(),'fullAddress':address.text.trim(),'isDefault':addresses.isEmpty}));}
+  Future<void> addAddress() async {
+    final result = await Navigator.push<Map<String,dynamic>>(
+      context, MaterialPageRoute(builder: (_) => const AddressPickerScreen()),
+    );
+    if (result != null && mounted) {
+      setState(() {
+        if (addresses.isEmpty) result['isDefault'] = true;
+        addresses.add(result);
+      });
+      await save();
+    }
   }
   @override Widget build(BuildContext context)=>Scaffold(appBar:AppBar(title:const Text('Your profile')),body:loading?const Center(child:CircularProgressIndicator()):ListView(padding:const EdgeInsets.all(18),children:[
     Container(padding:const EdgeInsets.all(19),decoration:BoxDecoration(color:_green,borderRadius:BorderRadius.circular(21)),child:Row(children:[const CircleAvatar(radius:27,backgroundColor:Colors.white24,child:Icon(Icons.person_outline,color:Colors.white,size:30)),const SizedBox(width:13),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('ACCOUNT DETAILS',style:TextStyle(color:Color(0xFFC8F0D9),fontSize:10,fontWeight:FontWeight.w800,letterSpacing:1)),const SizedBox(height:5),Text(email,style:const TextStyle(color:Colors.white,fontWeight:FontWeight.w700))]))])),

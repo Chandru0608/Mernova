@@ -1,10 +1,11 @@
 const Order = require("../models/Order");
 const Product = require("../models/Product");
 const Store = require("../models/Store");
+const crypto = require("crypto");
 
 exports.checkout = async (req, res, next) => {
   try {
-    const { items, address } = req.body;
+    const { items, address, deliveryLocation } = req.body;
     if (!Array.isArray(items) || !items.length || !address) return res.status(400).json({ message: "Cart items and delivery address are required" });
     const ids = items.map(x => x.productId);
     const products = await Product.find({ _id: { $in: ids }, isAvailable: true });
@@ -21,7 +22,9 @@ exports.checkout = async (req, res, next) => {
     const store = await Store.findById(storeIds[0]);
     const order = await Order.create({
       customer: req.user._id, store: store._id, items: normalized,
-      subtotal, deliveryFee: 30, total: subtotal + 30, address,
+      subtotal, deliveryFee: 30, platformFee: 5, tax: 0, discount: 0, total: subtotal + 35, address,
+      handoverToken: crypto.randomBytes(24).toString("hex"), promisedAt: new Date(Date.now() + 45 * 60000),
+      destinationLocation: deliveryLocation && Number.isFinite(Number(deliveryLocation.latitude)) && Number.isFinite(Number(deliveryLocation.longitude)) ? { latitude: Number(deliveryLocation.latitude), longitude: Number(deliveryLocation.longitude) } : undefined,
       orderType: products[0].type
     });
     for (const item of normalized) await Product.updateOne({ _id: item.product }, { $inc: { stock: -item.quantity } });
@@ -117,12 +120,12 @@ exports.updateDeliveryLocation = async (req, res, next) => {
 exports.tracking = async (req, res, next) => {
   try {
     const order = await Order.findOne({ _id: req.params.id, customer: req.user._id })
-      .select("status deliveryPartner deliveryLocation address")
+      .select("status deliveryPartner deliveryLocation destinationLocation address")
       .populate("deliveryPartner", "name phone");
     if (!order) return res.status(404).json({ message: "Order not found" });
     res.json({ tracking: {
       orderId: order._id, status: order.status, address: order.address,
-      deliveryPartner: order.deliveryPartner, location: order.deliveryLocation || null
+      deliveryPartner: order.deliveryPartner, location: order.deliveryLocation || null, destination: order.destinationLocation || null
     }});
   } catch (e) { next(e); }
 };

@@ -8,8 +8,10 @@ import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'api.dart';
+import 'feature_tools.dart';
 
 // ==========================================
 // DELIVERY PARTNER LOGIN
@@ -247,6 +249,7 @@ class _PartnerHomeState extends State<PartnerHome> {
       appBar: AppBar(
         title: const Text('Partner hub'),
         actions: [
+          IconButton(onPressed: ()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const PartnerToolsScreen())), icon: const Icon(Icons.auto_awesome), tooltip: 'Partner tools'),
           IconButton(onPressed: load, icon: const Icon(Icons.refresh_rounded), tooltip: 'Refresh'),
           IconButton(onPressed: logout, icon: const Icon(Icons.logout_rounded), tooltip: 'Log out'),
         ],
@@ -344,7 +347,7 @@ class _PartnerHomeState extends State<PartnerHome> {
                                     if (assigned && (status == 'picked_up' || status == 'on_the_way')) ...[
                                       const SizedBox(height: 10),
                                       OutlinedButton.icon(
-                                        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => DeliveryMapScreen(address: address, orderId: id))),
+                                        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => DeliveryMapScreen(address: address, orderId: id, destinationLatitude: (order['destinationLocation']?['latitude'] as num?)?.toDouble(), destinationLongitude: (order['destinationLocation']?['longitude'] as num?)?.toDouble()))),
                                         icon: const Icon(Icons.map_outlined),
                                         label: const Text('Open delivery map'),
                                       ),
@@ -376,11 +379,15 @@ class _PartnerHomeState extends State<PartnerHome> {
 class DeliveryMapScreen extends StatefulWidget {
   final String address;
   final String orderId;
+  final double? destinationLatitude;
+  final double? destinationLongitude;
 
   const DeliveryMapScreen({
     super.key,
     required this.address,
     required this.orderId,
+    this.destinationLatitude,
+    this.destinationLongitude,
   });
 
   @override
@@ -467,8 +474,13 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
       });
       await _sendLocation(position.latitude, position.longitude);
 
-      // Convert customer address to map coordinates.
-      if (widget.address.trim().isEmpty) {
+      // Prefer the customer's saved GPS pin; geocode text only for older/manual orders.
+      if (widget.destinationLatitude != null && widget.destinationLongitude != null) {
+        destination = LatLng(widget.destinationLatitude!, widget.destinationLongitude!);
+        message = '';
+        await _loadRoute();
+        _fitMap();
+      } else if (widget.address.trim().isEmpty) {
         setState(() {
           message = 'This order has no delivery address.';
         });
@@ -770,14 +782,25 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
         ],
       ),
       bottomNavigationBar: destination == null
-          ? null
-          : Padding(
+          ? Padding(
               padding: const EdgeInsets.all(12),
-              child: Text(
-                'Destination: ${widget.address}',
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
+              child: Text('Destination: ${widget.address}', maxLines: 2, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center),
+            )
+          : SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                child: FilledButton.icon(
+                  onPressed: () async {
+                    final point = destination!;
+                    final uri = Uri.parse('https://www.google.com/maps/dir/?api=1&destination=${point.latitude},${point.longitude}&travelmode=driving');
+                    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+                    if (!opened && mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not open Google Maps.')));
+                    }
+                  },
+                  icon: const Icon(Icons.navigation_rounded),
+                  label: const Text('Start turn-by-turn navigation'),
+                ),
               ),
             ),
     );
