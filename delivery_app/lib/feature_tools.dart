@@ -10,7 +10,7 @@ class PartnerToolsScreen extends StatefulWidget {
 }
 class _PartnerToolsScreenState extends State<PartnerToolsScreen> {
   Map<String,dynamic>? earnings, performance, weather;
-  final amount=TextEditingController(), litres=TextEditingController(), note=TextEditingController();
+  final amount=TextEditingController(), litres=TextEditingController(), note=TextEditingController(), routeIds=TextEditingController();\n  Map<String,dynamic>? routePlan;
   bool busy=false; String message='';
   Future<Map<String,dynamic>> act(Future<Map<String,dynamic>> Function() f,{String success='Saved successfully'}) async {
     setState(()=>busy=true);
@@ -29,7 +29,7 @@ class _PartnerToolsScreenState extends State<PartnerToolsScreen> {
     if(mounted)setState(() {earnings=r[0];performance=r[1];});
   }
   @override void initState(){super.initState();refresh().catchError((e){if(mounted)setState(()=>message=e.toString());});}
-  @override void dispose(){amount.dispose();litres.dispose();note.dispose();super.dispose();}
+  @override void dispose(){amount.dispose();litres.dispose();note.dispose();routeIds.dispose();super.dispose();}
   @override Widget build(BuildContext context)=>Scaffold(
     appBar:AppBar(title:const Text('Partner tools'),actions:[IconButton(onPressed:busy?null:() async {try{await refresh();if(mounted)setState(()=>message='Dashboard refreshed');}catch(e){if(mounted)setState(()=>message=e.toString());}},icon:const Icon(Icons.refresh))]),
     body:ListView(padding:const EdgeInsets.all(16),children:[
@@ -56,6 +56,10 @@ class _PartnerToolsScreenState extends State<PartnerToolsScreen> {
         } catch (_) {}
       },child:const Text('Save fuel expense')),
       FilledButton.tonal(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const HandoverScanScreen())),child:const Text('Scan customer handover QR')),
+      const Divider(height:32),const Text('MULTI-ORDER ROUTE PLAN',style:TextStyle(fontWeight:FontWeight.w800,letterSpacing:1,color:Color(0xFF2456C5))),
+      TextField(controller:routeIds,maxLines:2,decoration:const InputDecoration(labelText:'Assigned order IDs (comma separated)',hintText:'Paste full order IDs')),
+      FilledButton.tonal(onPressed:busy||routeIds.text.trim().isEmpty?null:() async {try{final ids=routeIds.text.split(',').map((x)=>x.trim()).where((x)=>x.isNotEmpty).toList();final r=await act(()=>Api.post('/features/partner/route/optimize',{'orderIds':ids}),success:'Approximate route order calculated');if(mounted)setState(()=>routePlan=r);}catch(_){}},child:const Text('Optimize stop order')),
+      if(routePlan!=null) Card(child:Padding(padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('Suggested sequence · ${routePlan!['method']}'),...(routePlan!['sequence'] as List? ?? []).asMap().entries.map((e)=>Text('${e.key+1}. Order ${e.value['orderId']}')),Text(routePlan!['note']??'')]))),
       const Divider(height:32),const Text('SAFETY',style:TextStyle(fontWeight:FontWeight.w800,letterSpacing:1,color:Color(0xFF2456C5))),
       FilledButton.tonal(onPressed:busy?null:() async {
         try {final p=await position();final r=await act(()=>Api.get('/features/partner/weather?latitude=${p.latitude}&longitude=${p.longitude}'),success:'Weather checked');if(mounted)setState(()=>weather=r);}

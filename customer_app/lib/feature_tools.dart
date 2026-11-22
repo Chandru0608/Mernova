@@ -9,7 +9,7 @@ class CustomerToolsScreen extends StatefulWidget {
   @override State<CustomerToolsScreen> createState()=>_CustomerToolsScreenState();
 }
 class _CustomerToolsScreenState extends State<CustomerToolsScreen> {
-  final orderId=TextEditingController(), invite=TextEditingController(), instruction=TextEditingController();
+  final orderId=TextEditingController(), invite=TextEditingController(), instruction=TextEditingController(), voiceUrl=TextEditingController();
   Map<String,dynamic>? eta, compensation, reorder, handover;
   List stores=[]; String? selectedStoreId, groupId, inviteCode;
   bool available=true, busy=false;
@@ -30,10 +30,11 @@ class _CustomerToolsScreenState extends State<CustomerToolsScreen> {
   Future<void> refreshGroup() async {if(groupId==null)return;final r=await Api.get('/features/groups/$groupId');if(mounted)setState(()=>groupDetails=r['group'] as Map<String,dynamic>?);}
   Future<void> saveGroupItem() async {if(groupId==null)return;await run(() async {final r=await Api.put('/features/groups/$groupId/cart',{'items':[{'productId':productId.text.trim(),'quantity':int.tryParse(quantity.text)??1}]});await refreshGroup();return r;},success:'Your group cart saved.');}
   Future<void> recordContribution() async {if(groupId==null)return;await run(() async {final r=await Api.post('/features/groups/$groupId/contribution',{'amount':double.tryParse(contribution.text)??0});await refreshGroup();return r;},success:'Contribution recorded as pending. No payment was charged.');}
+  Future<void> saveVoiceInstruction() async {if(id.isEmpty)return;await run(()=>Api.post('/features/orders/$id/voice-instruction',{'audioUrl':voiceUrl.text.trim()}),success:'Voice instruction link saved. Audio hosting must be HTTPS.');}
   Future<void> loadEta() async {final r=await Api.get('/features/orders/$id/eta');setState(()=>eta=r);}
   Future<void> loadComp() async {final r=await Api.get('/features/orders/$id/compensation');setState(()=>compensation=r);}
   Future<void> loadReorder() async {final r=await Api.get('/features/orders/$id/reorder');setState(()=>reorder=r);}
-  @override void dispose(){orderId.dispose();invite.dispose();instruction.dispose();productId.dispose();quantity.dispose();contribution.dispose();super.dispose();}
+  @override void dispose(){orderId.dispose();invite.dispose();instruction.dispose();voiceUrl.dispose();productId.dispose();quantity.dispose();contribution.dispose();super.dispose();}
   @override Widget build(BuildContext context)=>Scaffold(appBar:AppBar(title:const Text('Order tools')),body:ListView(padding:const EdgeInsets.all(16),children:[
     const Text('CUSTOMER FEATURES',style:TextStyle(fontWeight:FontWeight.w800,letterSpacing:1,color:Color(0xFF147D5A))),
     const SizedBox(height:8),const Text('Enter an order ID to check its live feature information.'),
@@ -50,7 +51,7 @@ class _CustomerToolsScreenState extends State<CustomerToolsScreen> {
     if(id.isNotEmpty) OutlinedButton.icon(onPressed:busy?null:()=>run(() async {await loadHandover();return handover!;},success:'Handover QR ready.'),icon:const Icon(Icons.qr_code_2),label:const Text('Show handover QR')),
     const Divider(height:32),const Text('DELIVERY ACCESS',style:TextStyle(fontWeight:FontWeight.w800,letterSpacing:1,color:Color(0xFF147D5A))),
     SwitchListTile(contentPadding:EdgeInsets.zero,title:const Text('I will be available for delivery'),value:available,onChanged:(v)=>setState(()=>available=v)),
-    TextField(controller:instruction,maxLines:2,decoration:const InputDecoration(labelText:'Delivery instructions')),
+    TextField(controller:instruction,maxLines:2,decoration:const InputDecoration(labelText:'Delivery instructions')),\n    TextField(controller:voiceUrl,keyboardType:TextInputType.url,decoration:const InputDecoration(labelText:'Voice note HTTPS URL (uploaded audio)')),\n    OutlinedButton(onPressed:busy||id.isEmpty||voiceUrl.text.trim().isEmpty?null:saveVoiceInstruction,child:const Text('Attach voice instruction link')),
     const SizedBox(height:8),FilledButton(onPressed:busy||id.isEmpty?null:()=>run(()=>Api.post('/features/orders/$id/customer-availability',{'available':available,'instructions':instruction.text.trim()}),success:'Availability and delivery instructions saved.'),child:const Text('Save availability & instructions')),
     const Divider(height:32),const Text('GROUP ORDER',style:TextStyle(fontWeight:FontWeight.w800,letterSpacing:1,color:Color(0xFF147D5A))),
     if(stores.isEmpty) const Text('No open stores are available yet. Open a store in the store dashboard first.'),
