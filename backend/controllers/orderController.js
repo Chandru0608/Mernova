@@ -1,6 +1,7 @@
 const Order = require("../models/Order");
 const Product = require("../models/Product");
 const Store = require("../models/Store");
+const crypto = require("crypto");
 
 exports.checkout = async (req, res, next) => {
   try {
@@ -21,7 +22,8 @@ exports.checkout = async (req, res, next) => {
     const store = await Store.findById(storeIds[0]);
     const order = await Order.create({
       customer: req.user._id, store: store._id, items: normalized,
-      subtotal, deliveryFee: 30, total: subtotal + 30, address,
+      subtotal, deliveryFee: 30, platformFee: 5, tax: 0, discount: 0, total: subtotal + 35, address,
+      handoverToken: crypto.randomBytes(24).toString("hex"), promisedAt: new Date(Date.now() + 45 * 60000),
       destinationLocation: deliveryLocation && Number.isFinite(Number(deliveryLocation.latitude)) && Number.isFinite(Number(deliveryLocation.longitude)) ? { latitude: Number(deliveryLocation.latitude), longitude: Number(deliveryLocation.longitude) } : undefined,
       orderType: products[0].type
     });

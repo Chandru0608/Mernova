@@ -19,6 +19,7 @@ const userSchema = new mongoose.Schema({
   phone: String,
   addresses: { type: [addressSchema], default: [] },
   isActive: { type: Boolean, default: true },
-  isAvailable: { type: Boolean, default: true }
+  isAvailable: { type: Boolean, default: true },
+  breakStartedAt: { type: Date, default: null }
 }, { timestamps: true });
 module.exports = mongoose.model("User", userSchema);
