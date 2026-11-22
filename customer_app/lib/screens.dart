@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
 import 'api.dart';
 
 const _green = Color(0xFF147D5A);
@@ -196,6 +198,108 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
   );
 }
 
+
+class AddressPickerScreen extends StatefulWidget {
+  const AddressPickerScreen({super.key});
+  @override State<AddressPickerScreen> createState() => _AddressPickerScreenState();
+}
+
+class _AddressPickerScreenState extends State<AddressPickerScreen> {
+  final MapController map = MapController();
+  final house = TextEditingController();
+  final landmark = TextEditingController();
+  final label = TextEditingController(text: 'Home');
+  final address = TextEditingController();
+  LatLng pin = const LatLng(12.9716, 77.5946);
+  bool mapReady = false, locating = false, resolving = false;
+  String? city, postalCode;
+
+  @override void initState() { super.initState(); _useCurrentLocation(); }
+
+  Future<void> _useCurrentLocation() async {
+    setState(() => locating = true);
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        throw Exception('Turn on your phone location to use GPS.');
+      }
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
+        throw Exception('Allow location permission for QuickDeliver.');
+      }
+      final p = await Geolocator.getCurrentPosition(locationSettings: const LocationSettings(accuracy: LocationAccuracy.high));
+      pin = LatLng(p.latitude, p.longitude);
+      await _reverseGeocode();
+      if (mapReady) map.move(pin, 16);
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))));
+    } finally { if (mounted) setState(() => locating = false); }
+  }
+
+  Future<void> _reverseGeocode() async {
+    setState(() => resolving = true);
+    try {
+      final places = await placemarkFromCoordinates(pin.latitude, pin.longitude);
+      if (places.isNotEmpty) {
+        final p = places.first;
+        final parts = [p.name, p.subLocality, p.locality, p.administrativeArea, p.postalCode]
+          .where((x) => x != null && x.trim().isNotEmpty).toList();
+        address.text = parts.join(', ');
+        city = p.locality;
+        postalCode = p.postalCode;
+      }
+    } catch (_) {
+      address.text = '${pin.latitude.toStringAsFixed(6)}, ${pin.longitude.toStringAsFixed(6)}';
+    } finally { if (mounted) setState(() => resolving = false); }
+  }
+
+  Future<void> _selectPin(LatLng point) async { pin = point; await _reverseGeocode(); if (mounted) setState(() {}); }
+
+  void _save() {
+    if (address.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter or select a delivery address.')));
+      return;
+    }
+    Navigator.pop(context, {
+      'label': label.text.trim().isEmpty ? 'Address' : label.text.trim(),
+      'fullAddress': [house.text.trim(), address.text.trim(), if (landmark.text.trim().isNotEmpty) 'Landmark: ${landmark.text.trim()}'].where((x) => x.isNotEmpty).join(', '),
+      'flatOrHouse': house.text.trim(), 'landmark': landmark.text.trim(),
+      'city': city ?? '', 'postalCode': postalCode ?? '',
+      'latitude': pin.latitude, 'longitude': pin.longitude, 'isDefault': false,
+    });
+  }
+
+  @override void dispose() { house.dispose(); landmark.dispose(); label.dispose(); address.dispose(); map.dispose(); super.dispose(); }
+
+  @override Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Choose delivery location')),
+    body: Column(children: [
+      Expanded(child: Stack(children: [
+        FlutterMap(mapController: map, options: MapOptions(initialCenter: pin, initialZoom: 14, onMapReady: () => mapReady = true, onTap: (_, point) => _selectPin(point)), children: [
+          TileLayer(urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', userAgentPackageName: 'com.example.quickdeliver_customer'),
+          MarkerLayer(markers: [Marker(point: pin, width: 48, height: 54, child: const Icon(Icons.location_pin, color: _green, size: 48))]),
+        ]),
+        Positioned(top: 12, left: 12, right: 12, child: Card(child: Padding(padding: const EdgeInsets.all(12), child: Row(children: [
+          const Icon(Icons.touch_app, color: _green), const SizedBox(width: 8),
+          const Expanded(child: Text('Move the map and tap to pin your exact delivery point.')),
+          IconButton(onPressed: locating ? null : _useCurrentLocation, icon: locating ? const SizedBox(width:18,height:18,child:CircularProgressIndicator(strokeWidth:2)) : const Icon(Icons.my_location)),
+        ])))),
+      ])),
+      Container(color: Colors.white, padding: const EdgeInsets.fromLTRB(16, 14, 16, 18), child: SafeArea(top: false, child: Column(children: [
+        TextField(controller: label, decoration: const InputDecoration(labelText: 'Save as (Home, Work, Other)')),
+        const SizedBox(height: 9),
+        TextField(controller: house, decoration: const InputDecoration(labelText: 'Flat / house / building (optional)')),
+        const SizedBox(height: 9),
+        TextField(controller: address, maxLines: 2, decoration: InputDecoration(labelText: 'Selected address', suffixIcon: resolving ? const Padding(padding: EdgeInsets.all(14), child: SizedBox(width:16,height:16,child:CircularProgressIndicator(strokeWidth:2))) : IconButton(onPressed: _reverseGeocode, icon: const Icon(Icons.refresh)))),
+        const SizedBox(height: 9),
+        TextField(controller: landmark, decoration: const InputDecoration(labelText: 'Nearby landmark (optional)')),
+        const SizedBox(height: 12),
+        FilledButton(onPressed: _save, child: const Text('Save this address')),
+      ]))),
+    ]),
+  );
+}
+
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
   @override State<ProfileScreen> createState()=>_ProfileScreenState();
@@ -221,10 +325,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
     catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
     finally{if(mounted)setState(()=>saving=false);}
   }
-  Future<void> addAddress()async{
-    final label=TextEditingController(text:'Home'),address=TextEditingController();
-    final ok=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(title:const Text('Add a saved address'),content:Column(mainAxisSize:MainAxisSize.min,children:[TextField(controller:label,decoration:const InputDecoration(labelText:'Label (Home, Work…)')),const SizedBox(height:12),TextField(controller:address,maxLines:3,decoration:const InputDecoration(labelText:'Full delivery address'))]),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Add address'))]));
-    if(ok==true&&address.text.trim().isNotEmpty){setState(()=>addresses.add({'label':label.text.trim().isEmpty?'Address':label.text.trim(),'fullAddress':address.text.trim(),'isDefault':addresses.isEmpty}));}
+  Future<void> addAddress() async {
+    final result = await Navigator.push<Map<String,dynamic>>(
+      context, MaterialPageRoute(builder: (_) => const AddressPickerScreen()),
+    );
+    if (result != null && mounted) {
+      setState(() {
+        if (addresses.isEmpty) result['isDefault'] = true;
+        addresses.add(result);
+      });
+      await save();
+    }
   }
   @override Widget build(BuildContext context)=>Scaffold(appBar:AppBar(title:const Text('Your profile')),body:loading?const Center(child:CircularProgressIndicator()):ListView(padding:const EdgeInsets.all(18),children:[
     Container(padding:const EdgeInsets.all(19),decoration:BoxDecoration(color:_green,borderRadius:BorderRadius.circular(21)),child:Row(children:[const CircleAvatar(radius:27,backgroundColor:Colors.white24,child:Icon(Icons.person_outline,color:Colors.white,size:30)),const SizedBox(width:13),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('ACCOUNT DETAILS',style:TextStyle(color:Color(0xFFC8F0D9),fontSize:10,fontWeight:FontWeight.w800,letterSpacing:1)),const SizedBox(height:5),Text(email,style:const TextStyle(color:Colors.white,fontWeight:FontWeight.w700))]))])),
