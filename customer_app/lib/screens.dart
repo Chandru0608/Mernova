@@ -5,6 +5,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'api.dart';
+import 'feature_tools.dart';
 
 const _green = Color(0xFF147D5A);
 const _ink = Color(0xFF172B25);
@@ -94,7 +95,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
   Future<void> logout() async {await Api.logout();if(!mounted)return;Navigator.pushAndRemoveUntil(context,MaterialPageRoute(builder:(_)=>const LoginScreen()),(_)=>false);}
   @override Widget build(BuildContext context)=>Scaffold(
-    appBar:AppBar(title:const Text('QuickDeliver'),actions:[IconButton(tooltip:'Profile and addresses',onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const ProfileScreen())),icon:const Icon(Icons.account_circle_outlined)),IconButton(tooltip:'My orders',onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const OrdersScreen())),icon:const Icon(Icons.receipt_long_outlined)),IconButton(tooltip:'Log out',onPressed:logout,icon:const Icon(Icons.logout))]),
+    appBar:AppBar(title:const Text('QuickDeliver'),actions:[IconButton(tooltip:'New feature tools',onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const CustomerToolsScreen())),icon:const Icon(Icons.auto_awesome)),IconButton(tooltip:'Profile and addresses',onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const ProfileScreen())),icon:const Icon(Icons.account_circle_outlined)),IconButton(tooltip:'My orders',onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const OrdersScreen())),icon:const Icon(Icons.receipt_long_outlined)),IconButton(tooltip:'Log out',onPressed:logout,icon:const Icon(Icons.logout))]),
     body:Column(children:[
       Padding(padding:const EdgeInsets.fromLTRB(18,8,18,16),child:Container(width:double.infinity,padding:const EdgeInsets.all(20),decoration:BoxDecoration(color:_green,borderRadius:BorderRadius.circular(24)),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
         const Text('YOUR DAY, DELIVERED.',style:TextStyle(color:Color(0xFFC8F0D9),fontSize:11,fontWeight:FontWeight.w800,letterSpacing:1.2)),

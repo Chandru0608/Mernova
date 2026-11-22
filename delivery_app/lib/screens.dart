@@ -11,6 +11,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'api.dart';
+import 'feature_tools.dart';
 
 // ==========================================
 // DELIVERY PARTNER LOGIN
@@ -248,6 +249,7 @@ class _PartnerHomeState extends State<PartnerHome> {
       appBar: AppBar(
         title: const Text('Partner hub'),
         actions: [
+          IconButton(onPressed: ()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const PartnerToolsScreen())), icon: const Icon(Icons.auto_awesome), tooltip: 'Partner tools'),
           IconButton(onPressed: load, icon: const Icon(Icons.refresh_rounded), tooltip: 'Refresh'),
           IconButton(onPressed: logout, icon: const Icon(Icons.logout_rounded), tooltip: 'Log out'),
         ],
