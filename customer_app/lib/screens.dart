@@ -6,7 +6,6 @@ import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'api.dart';
 import 'feature_tools.dart';
-import 'feature_tools.dart';
 
 const _green = Color(0xFF147D5A);
 const _ink = Color(0xFF172B25);

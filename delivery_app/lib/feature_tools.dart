@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:geolocator/geolocator.dart';
 import 'api.dart';
 
@@ -53,6 +55,7 @@ class _PartnerToolsScreenState extends State<PartnerToolsScreen> {
           amount.clear();litres.clear();note.clear();await refresh();
         } catch (_) {}
       },child:const Text('Save fuel expense')),
+      FilledButton.tonal(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const HandoverScanScreen())),child:const Text('Scan customer handover QR')),
       const Divider(height:32),const Text('SAFETY',style:TextStyle(fontWeight:FontWeight.w800,letterSpacing:1,color:Color(0xFF2456C5))),
       FilledButton.tonal(onPressed:busy?null:() async {
         try {final p=await position();final r=await act(()=>Api.get('/features/partner/weather?latitude=${p.latitude}&longitude=${p.longitude}'),success:'Weather checked');if(mounted)setState(()=>weather=r);}
@@ -73,4 +76,34 @@ class _PartnerToolsScreenState extends State<PartnerToolsScreen> {
       if(message.isNotEmpty) Padding(padding:const EdgeInsets.only(top:16),child:Text(message,style:TextStyle(color:message.toLowerCase().contains('exception')?Colors.red:Colors.green,fontWeight:FontWeight.w600))),
       if(busy) const Padding(padding:EdgeInsets.all(12),child:LinearProgressIndicator()),
     ]));
+}
+
+class HandoverScanScreen extends StatefulWidget {
+ const HandoverScanScreen({super.key});
+ @override State<HandoverScanScreen> createState()=>_HandoverScanScreenState();
+}
+class _HandoverScanScreenState extends State<HandoverScanScreen> {
+ bool processing=false,done=false; String message='Point the camera at the customer’s order QR code.';
+ Future<void> detected(BarcodeCapture capture) async {
+  if(processing||done)return;
+  final raw=capture.barcodes.isEmpty?null:capture.barcodes.first.rawValue;
+  if(raw==null)return;
+  setState(()=>processing=true);
+  try {
+   final data=jsonDecode(raw) as Map<String,dynamic>;
+   final orderId=data['orderId']?.toString()??'', token=data['token']?.toString()??'';
+   if(orderId.isEmpty||token.isEmpty)throw Exception('This is not a QuickDeliver handover QR.');
+   final result=await Api.post('/features/orders/$orderId/verify-handover',{'token':token});
+   if(mounted)setState(()=>{done=true,message:result['message']??'Handover verified.'});
+  } catch(e) {if(mounted)setState(()=>message=e.toString().replaceFirst('Exception: ',''));}
+  finally{if(mounted)setState(()=>processing=false);}
+ }
+ @override Widget build(BuildContext context)=>Scaffold(appBar:AppBar(title:const Text('Verify handover')),body:Column(children:[
+  Expanded(child:MobileScanner(onDetect:detected)),
+  Padding(padding:const EdgeInsets.all(18),child:Column(children:[
+   Text(message,textAlign:TextAlign.center,style:const TextStyle(fontWeight:FontWeight.w600)),
+   if(processing) const Padding(padding:EdgeInsets.all(12),child:CircularProgressIndicator()),
+   if(done) FilledButton(onPressed:()=>Navigator.pop(context),child:const Text('Done')),
+  ]))
+ ]));
 }
