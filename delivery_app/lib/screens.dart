@@ -8,6 +8,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'api.dart';
 
@@ -770,14 +771,25 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
         ],
       ),
       bottomNavigationBar: destination == null
-          ? null
-          : Padding(
+          ? Padding(
               padding: const EdgeInsets.all(12),
-              child: Text(
-                'Destination: ${widget.address}',
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
+              child: Text('Destination: ${widget.address}', maxLines: 2, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center),
+            )
+          : SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                child: FilledButton.icon(
+                  onPressed: () async {
+                    final point = destination!;
+                    final uri = Uri.parse('https://www.google.com/maps/dir/?api=1&destination=${point.latitude},${point.longitude}&travelmode=driving');
+                    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+                    if (!opened && mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not open Google Maps.')));
+                    }
+                  },
+                  icon: const Icon(Icons.navigation_rounded),
+                  label: const Text('Start turn-by-turn navigation'),
+                ),
               ),
             ),
     );
