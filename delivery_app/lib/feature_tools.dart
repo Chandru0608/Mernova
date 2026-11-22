@@ -12,7 +12,7 @@ class _PartnerToolsScreenState extends State<PartnerToolsScreen> {
   bool busy=false; String message='';
   Future<void> act(Future<Map<String,dynamic>> Function() f) async {setState(()=>busy=true);try{final r=await f();if(mounted)setState(()=>message=r.toString());}catch(e){if(mounted)setState(()=>message=e.toString());}finally{if(mounted)setState(()=>busy=false);}}
   Future<Position> position() async {var p=await Geolocator.checkPermission();if(p==LocationPermission.denied)p=await Geolocator.requestPermission();if(p==LocationPermission.denied||p==LocationPermission.deniedForever)throw Exception('Location permission is required');return Geolocator.getCurrentPosition();}
-  Future<void> refresh() async {final r=await Future.wait([Api.get('/features/partner/earnings'),Api.get('/features/partner/performance')]);if(mounted)setState(()=>{earnings=r[0],performance=r[1]});}
+  Future<void> refresh() async {final r=await Future.wait([Api.get('/features/partner/earnings'),Api.get('/features/partner/performance')]);if(mounted){setState(() {earnings=r[0];performance=r[1];});}}
   @override void initState(){super.initState();refresh().catchError((e){if(mounted)setState(()=>message=e.toString());});}
   @override void dispose(){amount.dispose();litres.dispose();note.dispose();super.dispose();}
   @override Widget build(BuildContext context)=>Scaffold(appBar:AppBar(title:const Text('Partner tools'),actions:[IconButton(onPressed:busy?null:()=>act(() async {await refresh();return {'refreshed':true};}),icon:const Icon(Icons.refresh))]),body:ListView(padding:const EdgeInsets.all(16),children:[
