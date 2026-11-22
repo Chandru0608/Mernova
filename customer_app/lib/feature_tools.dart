@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'api.dart';
 
 class CustomerToolsScreen extends StatefulWidget {
-  const CustomerToolsScreen({super.key});
+  const CustomerToolsScreen({super.key, this.initialOrderId=''});
+  final String initialOrderId;
   @override State<CustomerToolsScreen> createState()=>_CustomerToolsScreenState();
 }
 class _CustomerToolsScreenState extends State<CustomerToolsScreen> {
@@ -10,6 +11,7 @@ class _CustomerToolsScreenState extends State<CustomerToolsScreen> {
   Map<String,dynamic>? eta, compensation, reorder;
   bool available=true, busy=false;
   String message='';
+  @override void initState(){super.initState();orderId.text=widget.initialOrderId;}
   Future<void> run(Future<Map<String,dynamic>> Function() action) async {
     setState(()=>busy=true); try { final r=await action(); if(mounted)setState(()=>message=r.toString()); }
     catch(e){if(mounted)setState(()=>message=e.toString());} finally{if(mounted)setState(()=>busy=false);}
@@ -22,7 +24,7 @@ class _CustomerToolsScreenState extends State<CustomerToolsScreen> {
   @override Widget build(BuildContext context)=>Scaffold(appBar:AppBar(title:const Text('Order tools')),body:ListView(padding:const EdgeInsets.all(16),children:[
     const Text('CUSTOMER FEATURES',style:TextStyle(fontWeight:FontWeight.w800,letterSpacing:1,color:Color(0xFF147D5A))),
     const SizedBox(height:8),const Text('Enter an order ID to check its live feature information.'),
-    const SizedBox(height:12),TextField(controller:orderId,decoration:const InputDecoration(labelText:'Order ID',border:OutlineInputBorder())),
+    const SizedBox(height:12),TextField(controller:orderId,decoration:const InputDecoration(labelText:'Full order ID (24 characters)',hintText:'Open this from Your orders for accuracy',border:OutlineInputBorder())),
     const SizedBox(height:12),Wrap(spacing:8,runSpacing:8,children:[
       FilledButton.tonal(onPressed:busy||id.isEmpty?null:()=>run(() async {await loadEta();return eta!;}),child:const Text('Smart ETA')),
       FilledButton.tonal(onPressed:busy||id.isEmpty?null:()=>run(() async {await loadComp();return compensation!;}),child:const Text('Delay compensation')),
