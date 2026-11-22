@@ -141,6 +141,7 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
   final MapController mapController = MapController();
   Timer? refreshTimer;
   LatLng? rider;
+  LatLng? destination;
   String status = 'Loading tracking…', address = '', partnerName = 'Delivery partner', phone = '', error = '';
   DateTime? updatedAt;
   bool loading = true;
@@ -165,10 +166,20 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
           rider = LatLng((loc['latitude'] as num).toDouble(), (loc['longitude'] as num).toDouble());
           updatedAt = loc['updatedAt'] == null ? null : DateTime.tryParse(loc['updatedAt'].toString());
         }
+        final drop = tracking['destination'];
+        if (drop != null && drop['latitude'] != null && drop['longitude'] != null) {
+          destination = LatLng((drop['latitude'] as num).toDouble(), (drop['longitude'] as num).toDouble());
+        }
         error = '';
         loading = false;
       });
-      if (rider != null && mapReady) mapController.move(rider!, 16);
+      if (rider != null && mapReady) {
+        if (destination != null) {
+          mapController.fitCamera(CameraFit.bounds(bounds: LatLngBounds.fromPoints([rider!, destination!]), padding: const EdgeInsets.all(64)));
+        } else {
+          mapController.move(rider!, 16);
+        }
+      }
     } catch (e) {
       if (mounted) setState(() { error = e.toString(); loading = false; });
     }
@@ -183,9 +194,12 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
             const Text('Waiting for partner location', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: _ink)), const SizedBox(height: 7),
             Text(error.isNotEmpty ? error : 'Your delivery partner’s live location will appear here after they start the delivery.', textAlign: TextAlign.center, style: const TextStyle(color: _muted)),
           ])))
-        : FlutterMap(mapController: mapController, options: MapOptions(initialCenter: rider!, initialZoom: 15, onMapReady: () { mapReady = true; if (rider != null) mapController.move(rider!, 16); }), children: [
+        : FlutterMap(mapController: mapController, options: MapOptions(initialCenter: rider!, initialZoom: 15, onMapReady: () { mapReady = true; if (rider != null && destination != null) { mapController.fitCamera(CameraFit.bounds(bounds: LatLngBounds.fromPoints([rider!, destination!]), padding: const EdgeInsets.all(64))); } else if (rider != null) { mapController.move(rider!, 16); } }), children: [
             TileLayer(urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', userAgentPackageName: 'com.example.quickdeliver_customer'),
-            MarkerLayer(markers: [Marker(point: rider!, width: 58, height: 58, child: const Icon(Icons.delivery_dining_rounded, color: _green, size: 48))]),
+            MarkerLayer(markers: [
+              Marker(point: rider!, width: 58, height: 58, child: const Icon(Icons.delivery_dining_rounded, color: _green, size: 48)),
+              if (destination != null) Marker(point: destination!, width: 48, height: 52, child: const Icon(Icons.location_pin, color: Colors.red, size: 46)),
+            ]),
           ])),
       Container(width: double.infinity, padding: const EdgeInsets.all(18), decoration: const BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Color(0x14000000), blurRadius: 12, offset: Offset(0,-3))]), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('ORDER STATUS · ${status.toUpperCase()}', style: const TextStyle(color: _green, fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: .8)),
@@ -276,7 +290,7 @@ class _AddressPickerScreenState extends State<AddressPickerScreen> {
     appBar: AppBar(title: const Text('Choose delivery location')),
     body: Column(children: [
       Expanded(child: Stack(children: [
-        FlutterMap(mapController: map, options: MapOptions(initialCenter: pin, initialZoom: 14, onMapReady: () => mapReady = true, onTap: (_, point) => _selectPin(point)), children: [
+        FlutterMap(mapController: map, options: MapOptions(initialCenter: pin, initialZoom: 14, onMapReady: () { mapReady = true; map.move(pin, 16); }, onTap: (_, point) => _selectPin(point)), children: [
           TileLayer(urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', userAgentPackageName: 'com.example.quickdeliver_customer'),
           MarkerLayer(markers: [Marker(point: pin, width: 48, height: 54, child: const Icon(Icons.location_pin, color: _green, size: 48))]),
         ]),
