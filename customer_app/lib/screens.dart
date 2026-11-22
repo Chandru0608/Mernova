@@ -108,9 +108,17 @@ class _HomeScreenState extends State<HomeScreen> {
       Expanded(child:loading?const Center(child:CircularProgressIndicator()):error.isNotEmpty?Center(child:Padding(padding:const EdgeInsets.all(24),child:Text(error,textAlign:TextAlign.center))):RefreshIndicator(onRefresh:load,child:visibleProducts.isEmpty?ListView(children:const [SizedBox(height:90),Center(child:Text('No products in this category yet.'))]):GridView.builder(padding:const EdgeInsets.fromLTRB(16,6,16,18),gridDelegate:const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:2,mainAxisSpacing:12,crossAxisSpacing:12,childAspectRatio:.82),itemCount:visibleProducts.length,itemBuilder:(ctx,i){
         final p=visibleProducts[i];final id=p['_id'].toString();final q=cart[id]??0;final grocery=(p['type']??'').toString().toLowerCase()=='grocery';
         return Card(child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-          Expanded(child:Center(child:Container(width:76,height:76,decoration:BoxDecoration(color:grocery?const Color(0xFFEAF5E9):const Color(0xFFFFF1E5),borderRadius:BorderRadius.circular(23)),child:Icon(grocery?Icons.shopping_basket_rounded:Icons.lunch_dining_rounded,size:39,color:grocery?_green:const Color(0xFFCC7A32))))),
+          Expanded(child: Center(child: Container(
+            width: double.infinity, height: 94,
+            decoration: BoxDecoration(color: grocery ? const Color(0xFFEAF5E9) : const Color(0xFFFFF1E5), borderRadius: BorderRadius.circular(16)),
+            clipBehavior: Clip.antiAlias,
+            child: (p['imageUrl'] ?? '').toString().isNotEmpty
+              ? Image.network(p['imageUrl'].toString(), fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Icon(grocery ? Icons.shopping_basket_rounded : Icons.lunch_dining_rounded, size: 39, color: grocery ? _green : const Color(0xFFCC7A32)))
+              : Icon(grocery ? Icons.shopping_basket_rounded : Icons.lunch_dining_rounded, size: 39, color: grocery ? _green : const Color(0xFFCC7A32)),
+          ))),
           Text(p['name']??'Product',maxLines:2,overflow:TextOverflow.ellipsis,style:const TextStyle(fontWeight:FontWeight.w800,color:_ink)),
-          const SizedBox(height:4),Text('₹${p['price']} · ${p['type']??'Product'}',style:const TextStyle(color:_muted,fontSize:12)),
+          const SizedBox(height:4),Text('₹${p['price']} · ${p['unit'] ?? p['type'] ?? 'Product'}',style:const TextStyle(color:_muted,fontSize:12)),
           const SizedBox(height:9),Row(children:[Expanded(child:Text('₹${((p['price'] as num).toDouble()*q).toStringAsFixed(0)}',style:const TextStyle(fontWeight:FontWeight.w800,color:_green))),if(q==0)IconButton.filledTonal(onPressed:()=>setState(()=>cart[id]=1),icon:const Icon(Icons.add),visualDensity:VisualDensity.compact)else Row(children:[IconButton(onPressed:()=>setState(()=>cart[id]=q-1),icon:const Icon(Icons.remove_circle_outline),visualDensity:VisualDensity.compact),Text('$q',style:const TextStyle(fontWeight:FontWeight.w800)),IconButton(onPressed:()=>setState(()=>cart[id]=q+1),icon:const Icon(Icons.add_circle),visualDensity:VisualDensity.compact)])])
         ])));
       }))),
