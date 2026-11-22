@@ -77,18 +77,19 @@ class _HomeScreenState extends State<HomeScreen> {
     for (final item in savedAddresses) {
       if (item['isDefault']==true) { defaultAddress=item; break; }
     }
+    Map<String,dynamic>? selectedAddress = defaultAddress;
     final address=TextEditingController(text:(defaultAddress?['fullAddress']??'').toString());
     final ok=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(title:const Text('Where should we deliver?'),content:Column(mainAxisSize:MainAxisSize.min,children:[
       if(savedAddresses.isNotEmpty) DropdownButtonFormField<String>(
         value:defaultAddress==null?null:defaultAddress['fullAddress'] as String,
         decoration:const InputDecoration(labelText:'Choose saved address'),
         items:savedAddresses.map((a)=>DropdownMenuItem<String>(value:a['fullAddress'] as String,child:Text('${a['label']} ${a['isDefault']==true?'· Default':''}',overflow:TextOverflow.ellipsis))).toList(),
-        onChanged:(value){if(value!=null){address.text=value;}},
+        onChanged:(value){if(value!=null){selectedAddress=savedAddresses.firstWhere((a)=>a['fullAddress']==value);address.text=value;}},
       ),
       const SizedBox(height:12),TextField(controller:address,maxLines:3,decoration:const InputDecoration(hintText:'House / flat, street, area, landmark',labelText:'Delivery address'))
     ]),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Place order'))]));
     if(ok!=true||address.text.trim().isEmpty)return;
-    try{final d=await Api.post('/orders/checkout',{'items':items,'address':address.text.trim()});if(!mounted)return;setState(()=>cart.clear());showDialog(context:context,builder:(ctx)=>AlertDialog(icon:const Icon(Icons.check_circle,color:_green,size:42),title:const Text('Order placed!'),content:Text(d['message']??'Your order has been received.'),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Done'))]));}
+    try{final savedLat=selectedAddress?['latitude']; final savedLng=selectedAddress?['longitude']; final d=await Api.post('/orders/checkout',{'items':items,'address':address.text.trim(),if(savedLat is num && savedLng is num) 'deliveryLocation':{'latitude':savedLat,'longitude':savedLng}});if(!mounted)return;setState(()=>cart.clear());showDialog(context:context,builder:(ctx)=>AlertDialog(icon:const Icon(Icons.check_circle,color:_green,size:42),title:const Text('Order placed!'),content:Text(d['message']??'Your order has been received.'),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Done'))]));}
     catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
   }
   Future<void> logout() async {await Api.logout();if(!mounted)return;Navigator.pushAndRemoveUntil(context,MaterialPageRoute(builder:(_)=>const LoginScreen()),(_)=>false);}
