@@ -45,11 +45,18 @@ exports.updateProfile = async (req, res, next) => {
       const cleaned = addresses.map((item, index) => ({
         label: String(item.label || "Home").trim().slice(0, 40),
         fullAddress: String(item.fullAddress || "").trim().slice(0, 400),
-        isDefault: Boolean(item.isDefault) || (index === 0 && addresses.length === 1)
+        isDefault: Boolean(item.isDefault) || (index === 0 && addresses.length === 1),
+        latitude: Number.isFinite(Number(item.latitude)) ? Number(item.latitude) : undefined,
+        longitude: Number.isFinite(Number(item.longitude)) ? Number(item.longitude) : undefined,
+        flatOrHouse: String(item.flatOrHouse || "").trim().slice(0, 100),
+        landmark: String(item.landmark || "").trim().slice(0, 160),
+        city: String(item.city || "").trim().slice(0, 100),
+        postalCode: String(item.postalCode || "").trim().slice(0, 12)
       }));
       if (cleaned.some(item => !item.fullAddress)) return res.status(400).json({ message: "Every saved address needs a full address" });
       const defaults = cleaned.filter(item => item.isDefault);
       if (defaults.length > 1) return res.status(400).json({ message: "Choose only one default address" });
+      if (cleaned.length && defaults.length === 0) cleaned[0].isDefault = true;
       req.user.addresses = cleaned;
     }
     await req.user.save();
