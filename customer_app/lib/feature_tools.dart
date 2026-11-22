@@ -23,7 +23,7 @@ class _CustomerToolsScreenState extends State<CustomerToolsScreen> {
   }
   String get id=>orderId.text.trim();
   Future<void> loadStores() async {try{final r=await Api.get('/stores');if(mounted)setState(()=>stores=r['stores']??[]);}catch(e){if(mounted)setState(()=>message=e.toString());}}
-  Future<void> createGroup() async {if(selectedStoreId==null){setState(()=>message='Choose an open store first.');return;}await run(() async {final r=await Api.post('/features/groups',{'storeId':selectedStoreId});if(mounted)setState(()=>{groupId=r['groupId']?.toString(),inviteCode=r['inviteCode']?.toString()});return r;},success:'Group created. Share the invite code with friends.');}
+  Future<void> createGroup() async {if(selectedStoreId==null){setState(()=>message='Choose an open store first.');return;}await run(() async {final r=await Api.post('/features/groups',{'storeId':selectedStoreId});if(mounted){setState(() {groupId=r['groupId']?.toString();inviteCode=r['inviteCode']?.toString();});}return r;},success:'Group created. Share the invite code with friends.');}
   Future<void> loadHandover() async {final r=await Api.get('/features/orders/$id/handover-code');if(mounted)setState(()=>handover=r);}
   Future<void> loadEta() async {final r=await Api.get('/features/orders/$id/eta');setState(()=>eta=r);}
   Future<void> loadComp() async {final r=await Api.get('/features/orders/$id/compensation');setState(()=>compensation=r);}
