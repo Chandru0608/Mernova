@@ -41,6 +41,10 @@ class Api {
     final r = await http.post(Uri.parse('${AppConfig.apiBaseUrl}$path'), headers: headers, body: jsonEncode(body));
     return _decode(r);
   }
+  static Future<Map<String,dynamic>> put(String path, Map<String,dynamic> body) async {
+    final r=await http.put(Uri.parse('${AppConfig.apiBaseUrl}$path'),headers:headers,body:jsonEncode(body));
+    return _decode(r);
+  }
   static Future<Map<String,dynamic>> patch(String path, Map<String,dynamic> body) async {
     final r = await http.patch(Uri.parse('${AppConfig.apiBaseUrl}$path'), headers: headers, body: jsonEncode(body));
     return _decode(r);

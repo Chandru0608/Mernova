@@ -94,7 +94,7 @@ class _HandoverScanScreenState extends State<HandoverScanScreen> {
    final orderId=data['orderId']?.toString()??'', token=data['token']?.toString()??'';
    if(orderId.isEmpty||token.isEmpty)throw Exception('This is not a QuickDeliver handover QR.');
    final result=await Api.post('/features/orders/$orderId/verify-handover',{'token':token});
-   if(mounted)setState(()=>{done=true,message:result['message']??'Handover verified.'});
+   if(mounted){setState(() {done=true;message=result['message']?.toString()??'Handover verified.';});}
   } catch(e) {if(mounted)setState(()=>message=e.toString().replaceFirst('Exception: ',''));}
   finally{if(mounted)setState(()=>processing=false);}
  }
