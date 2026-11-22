@@ -7,6 +7,9 @@ const productSchema = new mongoose.Schema({
   type: { type: String, enum: ["grocery", "food"], default: "grocery" },
   price: { type: Number, required: true, min: 0 },
   imageUrl: String,
+  unit: { type: String, default: "each", trim: true },
+  mrp: { type: Number, min: 0 },
+  tags: { type: [String], default: [] },
   stock: { type: Number, default: 0, min: 0 },
   isAvailable: { type: Boolean, default: true }
 }, { timestamps: true });
